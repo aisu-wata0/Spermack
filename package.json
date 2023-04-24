@@ -1,0 +1,32 @@
+{
+  "name": "spermack",
+  "version": "1.0.0",
+  "description": "Slack's Claude connected to the TavernAI",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Barbariskaa/Spermack.git"
+  },
+  "keywords": [
+    "Slack",
+    "Claude",
+    "TavernAI",
+    "Reverse",
+    "proxy"
+  ],
+  "author": "Barbariskaa",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Barbariskaa/Spermack/issues"
+  },
+  "homepage": "https://github.com/Barbariskaa/Spermack#readme",
+  "dependencies": {
+    "form-data": "^4.0.0",
+    "formdata": "^0.10.4",
+    "wc": "^0.0.1",
+    "ws": "^8.13.0"
+  }
+}
