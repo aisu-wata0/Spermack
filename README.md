@@ -16,6 +16,8 @@ Then you need to add Claude (https://slack.com/apps/A04KGS7N9A8-claude) to your 
 
 Download the zip from this page, extract and enter the -main folder.
 
+To do that, scroll to the top of this page, find the green button labeled <>Code. Press it, and then hit Download ZIP.
+
 Open the config file in a text editor of your choice. There are 4 values there, I'll explain them in order:
 
 
