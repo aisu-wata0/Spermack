@@ -46,8 +46,8 @@ Go to the Slack account of Claude, open the accounts info at the top of your cha
 
 
 
-Make sure that in the API(Plug) tab of SillyTavern you have OpenAI selected. Put random text in the API Key field.
-Open OpenAI settings(sliders tab)
+Make sure that in the API(Plug) tab of SillyTavern you have OpenAI selected. Put random text in the API Key field. Open OpenAI settings(sliders tab).
+
 Start start.bat, copy the address in the console as a reverse proxy in SillyTavern, select GPT-4 as the OpenAI Mode. In the API tab, hit connect. Congratulations!
 
 Translated with love xoxo
