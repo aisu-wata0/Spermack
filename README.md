@@ -37,7 +37,7 @@ Copy its value completely and paste it into the COOKIE
 ![image](https://user-images.githubusercontent.com/129290831/234064337-4e5d9c7c-2da9-49ad-85e5-e22847ce471c.png)
 
 ## TEAM_ID:
-Go to the main page of your workspace, and in the upper left corner click on the arrow of your Kumersk LLC, there will be a link, like coomer-workspace.slack.com . Copy what is up to the first point (coomer-workspace) and paste it into TEAM_ID
+Go to the main page of your workspace on Slack. In the upper left corner, click on the name of your workspace with a down arrow next to it. There will be a link, like coomer-workspace.slack.com. Copy what is up to the first dot (coomer-workspace) and paste it into TEAM_ID
 
 ## CLAUDE:
 Go to the your DMs with Claude, open the account's info at the top of your chat window and grab the channel ID from the bottom of the new window. We insert it into CLAUDE
