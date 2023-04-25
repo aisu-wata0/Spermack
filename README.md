@@ -12,6 +12,8 @@
 You need to register on Slack (https://slack.com) and make a workgroup.
 Then you need to add Claude (https://slack.com/apps/A04KGS7N9A8-claude) to your workgroup.
 
+If you already have a Slack account, either make a new one for Claude, or post on /aicg/ when your coworkers read your ERP logs.
+
 # Script Setup
 
 Download the zip from this page.
