@@ -27,7 +27,7 @@ Click the request(FF)/payload(Chromium) option at the top of the new section, we
 
 
 ## COOKIE:
-Copy the cookies ** ENCODED ** in the url.
+Copy the cookies **ENCODED** in the url.
 Go to your workspace and press F12. Go to the storage(FF)/application(Chromium) option at the top of the inspect element tab, look for cookies called d, with a value starting with xoxd-.
 Copy its value completely and paste it into the COOKIE
 ![image](https://user-images.githubusercontent.com/129290831/234064337-4e5d9c7c-2da9-49ad-85e5-e22847ce471c.png)
