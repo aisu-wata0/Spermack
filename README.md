@@ -9,7 +9,8 @@
 
 # Setting Up Slack
 
-You need to register on Slack (https://slack.com) and make a workgroup. (If you already have a Slack account, make a new one for this, or else your real life workgroup will be able to read your logs.)
+You need to register on Slack (https://slack.com) and make a workgroup. If you already have a Slack account, make a new one for this.
+
 Then you need to add Claude (https://slack.com/apps/A04KGS7N9A8-claude) to your workgroup.
 
 # Script Setup
