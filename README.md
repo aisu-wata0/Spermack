@@ -21,7 +21,7 @@ Open the config file in a text editor of your choice. There are 4 values there, 
 
 
 ## TOKEN:
-In the workspace you created, press F12, and write a message to the chat (any), go to the network tab(very top of inspect element tabs) and look for the request starting with chat.postMessage, click it.
+In the workspace you created, press F12, go to the network tab(very top of inspect element tabs), once in that tab send a message in any channel, and look for the request starting with chat.postMessage, click it.
 Click the request(FF)/payload(Chromium) option at the top of the new section, we are looking for a token there starting with xoxc-. Copy it completely(it is the rest of the single line starting with xoxc-) and paste it into TOKEN
 ![image](https://user-images.githubusercontent.com/129290831/234063889-99ecb1d5-d3f8-43a3-8fca-1e7a3e481134.png)
 
