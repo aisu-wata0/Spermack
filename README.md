@@ -46,9 +46,11 @@ Go to the your DMs with Claude, open the account's info at the top of your chat 
 
 ![image](https://user-images.githubusercontent.com/129290831/234062310-b2ea0dd2-20fa-41e3-bfaa-d5cfc8dfbe28.png)
 
+## CLAUDE_MEMBER_ID:
+Leave that empty.
 
 
-# How to connect to the tavern?
+# How to connect to Tavern?
 
 
 
