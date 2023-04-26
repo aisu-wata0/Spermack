@@ -37,8 +37,7 @@ async function sendMessage(message) {
     const req = https.request(`https://${TEAM_ID}.slack.com/api/chat.postMessage`, options, async (res) => {
       try {
         const response = await readBody(res, true);
-        console.log(response);
-        resolve(response.ts);
+        resolve(response);
       } catch (error) {
         console.error(error);
         reject(error);
@@ -77,7 +76,6 @@ async function editMessage(ts, newText) {
     const req = https.request(`https://${TEAM_ID}.slack.com/api/chat.update`, options, async (res) => {
       try {
         const response = await readBody(res, true);
-        console.log(response);
         resolve(response);
       } catch (error) {
         console.error(error);
@@ -170,7 +168,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
         console.log("Sending message %d/%d", messageIndex, messages.length - 1);
         let is_last_message = messageIndex == messages.length - 1
         const prompt = buildPrompt(messages[messageIndex], is_last_message);
-        sentTs = await sendMessage(prompt);
+        sentTs = await sendMessage(prompt).ts;
         console.log("Sent %d", messageIndex);
         messageIndex++;
       }

@@ -10,20 +10,19 @@ async function main() {
     const server = http.createServer(async (req, res) => {
         if (req.method.toUpperCase() === 'POST') {
             const body = await readBody(req, true);
-            console.log(body)
+            console.log({ ...body, messages: "[look at tavern's log]"})
             const modelName = "Claude";
 
             const {
                 messages
             } = body;
-            console.log("messages\n",messages);
+            // console.log("messages\n",messages);
             slices = splitJsonArray(messages, 12000);
 
             const id = `chatcmpl-${(Math.random().toString(36).slice(2))}`;
             const created = Math.floor(Date.now() / 1000);
             
             await sendChatReset();
-            wait(500);
             if (!streaming) {
                 const result = await getWebSocketResponse(slices, streaming);
                 console.log(result)
