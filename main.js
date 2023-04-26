@@ -1,7 +1,10 @@
 const http = require('http');
+const WebSocket = require('ws');
 
 const { readBody, splitJsonArray, wait } = require('./utils');
-const { waitForWebSocketResponse, sendChatReset } = require('./slack');
+const { waitForWebSocketResponse, streamWebSocketResponse, sendChatReset } = require('./slack');
+
+const { streaming } = require('./config');
 
 async function main() {
     const server = http.createServer(async (req, res) => {
@@ -22,22 +25,50 @@ async function main() {
             
             await sendChatReset();
             wait(2000);
-            const result = await waitForWebSocketResponse(slices);
-            console.log(result)
-            res.write(JSON.stringify({
-                id, created,
-                object: 'chat.completion',
-                model: modelName,
-                choices: [{
-                    message: {
-                        role: 'assistant',
-                        content: result,
-                    },
-                    finish_reason: 'stop',
-                    index: 0,
-                }]
-            }));
+            if (!streaming) {
+                const result = await waitForWebSocketResponse(slices);
+                console.log(result)
+                res.write(JSON.stringify({
+                    id, created,
+                    object: 'chat.completion',
+                    model: modelName,
+                    choices: [{
+                        message: {
+                            role: 'assistant',
+                            content: result,
+                        },
+                        finish_reason: 'stop',
+                        index: 0,
+                    }]
+                }));
+            } else {
+                const ws = new WebSocket('ws://server/generate_openai');
 
+                const stream = await streamWebSocketResponse(slices);
+                const reader = stream.getReader();
+                let index = 0;
+                reader.read(result => {
+                    ws.send(JSON.stringify({
+                        id,
+                        created,
+                        object: 'chat.completion',
+                        model: modelName,
+                        choices: [{
+                            message: {
+                                role: 'assistant',
+                                content: result.value
+                            },
+                            // finish_reason: 'stop',
+                            index: 0
+                        }],
+                        index: index,
+                    }) + '\n');
+
+                    index++;
+                })
+
+                ws.onclose = () => { /* handle close */ }
+            }
             res.end();
         } else {
             res.setHeader('Content-Type', 'application/json');

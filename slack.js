@@ -23,7 +23,7 @@ async function sendPromptMessage(prompt) {
     form.append('include_channel_perm_error', 'true');
     form.append('client_msg_id', Uuidv4());
     form.append('_x_reason', 'webapp_message_send');
-  
+
     const options = {
       method: 'POST',
       headers: {
@@ -107,12 +107,12 @@ async function sendPromptMessage(prompt) {
       };
   
       await sendNextPrompt();
-  
+      let typingString = "_Typing..._";
       websocket.on('message', async (message) => {
         try {
           const data = JSON.parse(message);
           if (data.subtype === 'message_changed') {
-            if (!data.message.text.endsWith("_Typing…_")) {
+            if (!data.message.text.endsWith(typingString)) {
               if (messageIndex < messages.length) {
                 await sendNextPrompt();
               } else {
@@ -139,10 +139,150 @@ async function sendPromptMessage(prompt) {
       });
     });
   }
-  
+
+
+async function streamWebSocketResponse(messages) {
+    const websocketURL = `wss://wss-primary.slack.com/?token=${TOKEN}`;
+
+    const websocket = new WebSocket(websocketURL, {
+      headers: headers,
+    });
+
+    const waitForConnection = new Promise((connectionResolve) => {
+      websocket.on('open', () => {
+        console.log('Connected to WebSocket');
+        connectionResolve();
+      });
+    });
+
+    await waitForConnection;
+
+    let messageIndex = 0;
+    const sendNextPrompt = async () => {
+      if (messageIndex < messages.length) {
+        console.log("Sending message %d", messageIndex);
+        const prompt = buildPrompt(messages[messageIndex]);
+        await sendPromptMessage(prompt);
+        console.log("Sent %d (Or not? You can check on slack, its not actually on the channel, so the `websocket` hangs? idk)", messageIndex);
+        messageIndex++;
+      }
+    };
+
+    await sendNextPrompt();
+
+    let typingString = "_Typing..._";
+
+    while (messageIndex < messages.length) {
+      // Need to send more messages
+      websocket.on('message', async (message) => {
+        try {
+          const data = JSON.parse(message);
+          if (data.subtype === 'message_changed') {
+
+            if (!data.message.text.endsWith(typingString)) {
+              // when typing finished, this is the end of the message
+              await sendNextPrompt();
+            } else {
+              console.log("Waiting... %d", data.message.text.length);
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing message:', error);
+          stream.error(error);
+        }
+      });
+      websocket.on('error', (error) => {
+        console.error('WebSocket error:', error.toString());
+        stream.error(error);
+      });
+      websocket.on('close', (code, reason) => {
+        console.log(`WebSocket closed with code ${code} and reason: ${reason.toString()}`);
+      });
+    }
+
+
+    return new ReadableStream({
+    start(stream) {
+      let currentSlice = 0;
+      websocket.on('message', async (message) => {
+        try {
+          const data = JSON.parse(message);
+          if (data.subtype === 'message_changed') {
+            
+            if (!data.message.text.endsWith(typingString)) {
+              // when typing finished, this is the end of the message
+              let currentText = data.message.text.slice(currentSlice);
+              stream.enqueue(currentText);
+              stream.close();
+              websocket.close();
+            } else {
+              let actualLength = data.message.text.length - typingString.length
+              let currentText = data.message.text.slice(currentSlice, actualLength);
+              currentSlice = actualLength
+              console.log("Sending:", currentText);
+              stream.enqueue(currentText);
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing message:', error);
+          stream.error(error);
+        }
+      });
+      websocket.on('error', (error) => {
+        console.error('WebSocket error:', error.toString());
+        stream.error(error);
+      });
+      websocket.on('close', (code, reason) => {
+        console.log(`WebSocket closed with code ${code} and reason: ${reason.toString()}`);
+      });
+    },
+    cancel() {
+      // Handle cancellation if needed
+    }
+  });
+}
+
+
+
+function deleteAllMessages(channelId) {
+  const requestOptions = {
+    method: 'POST',
+    path: `/api/conversations.history?channel=${channelId}`,
+    headers: {
+      ...headers,
+      ...form.getHeaders(),
+    },
+  };
+
+  const req = https.request(requestOptions, (res) => {
+    let data = '';
+    res.on('data', (chunk) => {
+      data += chunk;
+    });
+    res.on('end', () => {
+      const messages = JSON.parse(data).messages;
+      messages.forEach((message) => {
+        const deleteOptions = {
+          method: 'POST',
+          path: '/api/chat.delete',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        };
+        const deleteReq = https.request(deleteOptions, (deleteRes) => { });
+        deleteReq.write(JSON.stringify({ channel: channelId, ts: message.ts }));
+        deleteReq.end();
+      });
+    });
+  });
+
+  req.end();
+}
+
 
 module.exports = {
   sendPromptMessage,
   sendChatReset,
   waitForWebSocketResponse,
+  streamWebSocketResponse,
 };
