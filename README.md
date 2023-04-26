@@ -59,6 +59,14 @@ Make sure that in the API(Plug) tab of SillyTavern you have OpenAI selected. Put
 
 Start start.bat, copy the address in the console as a reverse proxy in SillyTavern, select GPT-4 as the OpenAI Mode. In the API tab, hit connect. Congratulations!
 
+
+<h1 align="center">Troubleshooting</h1>
+
+
+<p align="center">{ ok: false, error: 'invalid_blocks_format' }</p>
+
+Claude cannot handle any backslashes(\) anywhere. If one shows up on a chararcter card or a in a conversation, this error will occur. Remove all backslashes to fix this.
+
 ---
 
 Translated with love, xoxo -AmmoniaM
