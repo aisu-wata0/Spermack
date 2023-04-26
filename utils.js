@@ -36,7 +36,7 @@ const readBody = (res, json) => new Promise((resolve, reject) => {
 })
 
 function getJailContext() {
-  return ` ${jail_context}`
+  return `\n${jail_context}`
 }
 
 function removeJailContextFromMessage(message) {
