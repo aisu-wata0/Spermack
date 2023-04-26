@@ -67,6 +67,12 @@ Start start.bat, copy the address in the console as a reverse proxy in SillyTave
 
 Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararcter card or a in a conversation, this error will occur. Remove all backslashes to fix this.
 
----
 
-Translated with love, xoxo -AmmoniaM
+
+# Credits
+
+
+
+Original code by Barbariskaa (https://github.com/Barbariskaa/Spermack)
+Streaming update by Bruno FS (https://github.com/bfs15/Spermack)
+Translation/Readme by AmmoniaM <3
