@@ -23,7 +23,7 @@ async function main() {
             const created = Math.floor(Date.now() / 1000);
             
             await sendChatReset();
-            wait(3000);
+            wait(500);
             if (!streaming) {
                 const result = await getWebSocketResponse(slices, streaming);
                 console.log(result)
