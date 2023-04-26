@@ -1,7 +1,10 @@
 const http = require('http');
+const WebSocket = require('ws');
 
 const { readBody, splitJsonArray, wait } = require('./utils');
-const { waitForWebSocketResponse, sendChatReset } = require('./slack');
+const { getWebSocketResponse, sendChatReset } = require('./slack');
+
+const { streaming } = require('./config');
 
 async function main() {
     const server = http.createServer(async (req, res) => {
@@ -13,32 +16,61 @@ async function main() {
             const {
                 messages
             } = body;
-            res.setHeader('Content-Type', 'application/json');
             console.log("messages\n",messages);
-            slices = splitJsonArray(messages, 12000);            
+            slices = splitJsonArray(messages, 12000);
 
             const id = `chatcmpl-${(Math.random().toString(36).slice(2))}`;
             const created = Math.floor(Date.now() / 1000);
             
             await sendChatReset();
             wait(3000);
-            const result = await waitForWebSocketResponse(slices);
-            console.log(result)
-            res.write(JSON.stringify({
-                id, created,
-                object: 'chat.completion',
-                model: modelName,
-                choices: [{
-                    message: {
-                        role: 'assistant',
-                        content: result,
-                    },
-                    finish_reason: 'stop',
-                    index: 0,
-                }]
-            }));
+            if (!streaming) {
+                const result = await getWebSocketResponse(slices, streaming);
+                console.log(result)
+                res.setHeader('Content-Type', 'application/json');
+                res.write(JSON.stringify({
+                    id, created,
+                    object: 'chat.completion',
+                    model: modelName,
+                    choices: [{
+                        message: {
+                            role: 'assistant',
+                            content: result,
+                        },
+                        finish_reason: 'stop',
+                        index: 0,
+                    }]
+                }));
+            } else {
+                const resultStream = await getWebSocketResponse(slices, streaming);
+                const reader = resultStream.getReader();
+                async function processData({ done, value }) {
+                    if (done) {
+                        res.write('\ndata: [DONE]');
+                        return;
+                    }
+                    response_data = {
+                        id,
+                        created,
+                        object: 'chat.completion',
+                        model: modelName,
+                        choices: [{
+                            delta: {
+                                role: 'assistant',
+                                content: value.toString(),
+                            },
+                            finish_reason: 'continue',
+                            index: 0,
+                        }],
+                    };
+                    res.write('\ndata: ' + JSON.stringify(response_data));
+                    const nextChunk = await reader.read();
+                    await processData(nextChunk);
+                }
 
-            res.end();
+                const firstChunk = await reader.read();
+                await processData(firstChunk);
+            }
         } else {
             res.setHeader('Content-Type', 'application/json');
             res.write(JSON.stringify({
