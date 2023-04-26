@@ -1,8 +1,6 @@
 <h1 align="center">Spermack</h1>
 
 <p align="center">Script for connecting Claude to Tavern</p>
-<p align="center">English Translation</p>
-<p align="center">Original Russian GitHub Page at https://github.com/Barbariskaa/Spermack</p>
 
 ---
 <br>
@@ -74,5 +72,7 @@ Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararct
 
 
 Original code by Barbariskaa (https://github.com/Barbariskaa/Spermack)
+
 Streaming update by Bruno FS (https://github.com/bfs15/Spermack)
+
 Translation/Readme by AmmoniaM <3
