@@ -1,6 +1,7 @@
 <h1 align="center">Spermack</h1>
 
 <p align="center">Script for connecting Claude to Tavern</p>
+<p align="center">(Credits at the bottom of this page. I DEMAND you acknowledge everyone who made this work.)</p>
 
 ---
 <br>
