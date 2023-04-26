@@ -133,10 +133,6 @@ async function sendPromptMessage(prompt) {
         console.error('WebSocket error:', error.toString());
         reject(error);
       });
-  
-      websocket.on('close', (code, reason) => {
-        console.log(`WebSocket closed with code ${code} and reason: ${reason.toString()}`);
-      });
     });
   }
   

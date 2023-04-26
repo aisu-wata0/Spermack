@@ -11,7 +11,7 @@ async function main() {
             const modelName = "Claude";
 
             const {
-                messages,
+                messages
             } = body;
             res.setHeader('Content-Type', 'application/json');
             console.log("messages\n",messages);
@@ -21,7 +21,7 @@ async function main() {
             const created = Math.floor(Date.now() / 1000);
             
             await sendChatReset();
-            wait(2000);
+            wait(3000);
             const result = await waitForWebSocketResponse(slices);
             console.log(result)
             res.write(JSON.stringify({

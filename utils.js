@@ -45,7 +45,7 @@ function buildPrompt(messages) {
         }
   
         return `${author}: ${m.content.trim()}`;
-    }).join('\n\n') + `\nAssistant: `;
+    }).join('\n\n');
   }
 
   const currentTime = () => {
@@ -67,31 +67,61 @@ function buildPrompt(messages) {
   }
   
   function splitJsonArray(jsonArray, maxLength) {
-    let result = [];
+    const result = [];
     let currentChunk = [];
     let currentLength = 2; // Accounts for the opening and closing square brackets in the JSON array
   
-    jsonArray.forEach((obj) => {
-      const jsonString = JSON.stringify(obj);
-      const objLength = jsonString.length + 1; // +1 for the comma between objects
+    const jail = '(OOC: This is only a part of the context, reply only "understood")';
+    const assistant = "\n\nAssistant: ";
+  
+    const addObjectToChunk = (object, chunk) => {
+      chunk.push(object);
+      return currentLength + JSON.stringify(object).length + 1;
+    };
+  
+    const appendTextToContent = (object, text) => {
+      const newObj = JSON.parse(JSON.stringify(object));
+      newObj.content += text;
+      return newObj;
+    };
+  
+    for (const obj of jsonArray) {
+      const objLength = JSON.stringify(obj).length + 1;
   
       if (currentLength + objLength <= maxLength) {
-        currentChunk.push(obj);
-        currentLength += objLength;
+        currentLength = addObjectToChunk(obj, currentChunk);
       } else {
-        // Store the current chunk and start a new one
+        const lastObjectInChunk = currentChunk[currentChunk.length - 1];
+        const lastObjectWithJail = appendTextToContent(lastObjectInChunk, ` ${jail}`);
+        const lastObjectWithJailLength = JSON.stringify(lastObjectWithJail).length + 1;
+  
+        if (currentLength - JSON.stringify(lastObjectInChunk).length - 1 + lastObjectWithJailLength <= maxLength) {
+          currentChunk[currentChunk.length - 1] = lastObjectWithJail;
+        }
+  
         result.push(currentChunk);
         currentChunk = [obj];
         currentLength = 2 + objLength;
       }
-    });
+    }
   
     if (currentChunk.length > 0) {
       result.push(currentChunk);
     }
   
+    const lastChunk = result[result.length - 1];
+    const lastObjectInLastChunk = lastChunk[lastChunk.length - 1];
+    const lastObjectWithAssistant = appendTextToContent(lastObjectInLastChunk, assistant);
+    const lastObjectWithAssistantLength = JSON.stringify(lastObjectWithAssistant).length + 1;
+  
+    if (currentLength - JSON.stringify(lastObjectInLastChunk).length - 1 + lastObjectWithAssistantLength <= maxLength) {
+      lastChunk[lastChunk.length - 1] = lastObjectWithAssistant;
+    }
+  
     return result;
   }
+  
+  
   
   function convertToUnixTime(date) {
     const unixTime = Math.floor(date.getTime() / 1000);
