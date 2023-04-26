@@ -65,7 +65,7 @@ Start start.bat, copy the address in the console as a reverse proxy in SillyTave
 
 <p align="center">{ ok: false, error: 'invalid_blocks_format' }</p>
 
-Claude cannot handle any backslashes(\) anywhere. If one shows up on a chararcter card or a in a conversation, this error will occur. Remove all backslashes to fix this.
+Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararcter card or a in a conversation, this error will occur. Remove all backslashes to fix this.
 
 ---
 
