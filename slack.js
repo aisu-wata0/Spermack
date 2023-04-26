@@ -251,7 +251,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                       // when typing finished, this is the end of the message
                       let currentTextChunk = data.message.text.slice(currentSlice);
                       currentSlice = data.message.text.length;
-                      console.log("Finished:", data.message.text);
+                      console.log("Finished:", data.message.text.length, " characters");
                       controller.enqueue(currentTextChunk);
                       controller.close();
                       websocket.close(1000, 'Connection closed by client');
@@ -259,7 +259,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                       let actualLength = data.message.text.length - typingString.length
                       let currentTextChunk = data.message.text.slice(currentSlice, actualLength);
                       currentSlice = actualLength
-                      console.log("Sending :", currentTextChunk);
+                      console.log("Sending :", currentTextChunk.length, " characters");
                       controller.enqueue(currentTextChunk);
                     }
                   }
