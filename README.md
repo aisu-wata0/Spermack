@@ -1,8 +1,7 @@
 <h1 align="center">Spermack</h1>
 
 <p align="center">Script for connecting Claude to Tavern</p>
-<p align="center">English Translation</p>
-<p align="center">Original Russian GitHub Page at https://github.com/Barbariskaa/Spermack</p>
+<p align="center">(Credits at the bottom of this page. I DEMAND you acknowledge everyone who made this work.)</p>
 
 ---
 <br>
@@ -47,9 +46,11 @@ Go to the your DMs with Claude, open the account's info at the top of your chat 
 
 ![image](https://user-images.githubusercontent.com/129290831/234062310-b2ea0dd2-20fa-41e3-bfaa-d5cfc8dfbe28.png)
 
+## CLAUDE_MEMBER_ID:
+Leave that empty.
 
 
-# How to connect to the tavern?
+# How to connect to Tavern?
 
 
 
@@ -67,6 +68,14 @@ Start start.bat, copy the address in the console as a reverse proxy in SillyTave
 
 Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararcter card or a in a conversation, this error will occur. Remove all backslashes to fix this.
 
----
 
-Translated with love, xoxo -AmmoniaM
+
+# Credits
+
+
+
+Original code by Barbariskaa (https://github.com/Barbariskaa/Spermack)
+
+Streaming update by Bruno FS (https://github.com/bfs15/Spermack)
+
+Translation/Readme by AmmoniaM <3
