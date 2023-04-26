@@ -2,7 +2,7 @@ const http = require('http');
 const WebSocket = require('ws');
 
 const { readBody, splitJsonArray, wait } = require('./utils');
-const { waitForWebSocketResponse, streamWebSocketResponse, sendChatReset } = require('./slack');
+const { getWebSocketResponse, sendChatReset } = require('./slack');
 
 const { streaming } = require('./config');
 
@@ -16,18 +16,17 @@ async function main() {
             const {
                 messages,
             } = body;
-            res.setHeader('Content-Type', 'application/json');
             console.log("messages\n",messages);
-            slices = splitJsonArray(messages, 12000);            
+            slices = splitJsonArray(messages, 12000);
 
             const id = `chatcmpl-${(Math.random().toString(36).slice(2))}`;
             const created = Math.floor(Date.now() / 1000);
             
             await sendChatReset();
-            wait(2000);
             if (!streaming) {
-                const result = await waitForWebSocketResponse(slices);
+                const result = await getWebSocketResponse(slices, streaming);
                 console.log(result)
+                res.setHeader('Content-Type', 'application/json');
                 res.write(JSON.stringify({
                     id, created,
                     object: 'chat.completion',
@@ -42,34 +41,35 @@ async function main() {
                     }]
                 }));
             } else {
-                const ws = new WebSocket('ws://server/generate_openai');
-
-                const stream = await streamWebSocketResponse(slices);
-                const reader = stream.getReader();
-                let index = 0;
-                reader.read(result => {
-                    ws.send(JSON.stringify({
+                const resultStream = await getWebSocketResponse(slices, streaming);
+                const reader = resultStream.getReader();
+                async function processData({ done, value }) {
+                    if (done) {
+                        res.write('\ndata: [DONE]');
+                        return;
+                    }
+                    response_data = {
                         id,
                         created,
                         object: 'chat.completion',
                         model: modelName,
                         choices: [{
-                            message: {
+                            delta: {
                                 role: 'assistant',
-                                content: result.value
+                                content: value.toString(),
                             },
-                            // finish_reason: 'stop',
-                            index: 0
+                            finish_reason: 'continue',
+                            index: 0,
                         }],
-                        index: index,
-                    }) + '\n');
+                    };
+                    res.write('\ndata: ' + JSON.stringify(response_data));
+                    const nextChunk = await reader.read();
+                    await processData(nextChunk);
+                }
 
-                    index++;
-                })
-
-                ws.onclose = () => { /* handle close */ }
+                const firstChunk = await reader.read();
+                await processData(firstChunk);
             }
-            res.end();
         } else {
             res.setHeader('Content-Type', 'application/json');
             res.write(JSON.stringify({
