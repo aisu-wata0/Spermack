@@ -30,52 +30,57 @@ async function main() {
                 console.log("!!!! CHECK YOUR TOKENS, COOKIES ./config.js");
                 res.end();
             }
-            if (!stream) {
-                const result = await getWebSocketResponse(slices, stream);
-                console.log(result)
-                res.setHeader('Content-Type', 'application/json');
-                res.write(JSON.stringify({
-                    id, created,
-                    object: 'chat.completion',
-                    model: modelName,
-                    choices: [{
-                        message: {
-                            role: 'assistant',
-                            content: result,
-                        },
-                        finish_reason: 'stop',
-                        index: 0,
-                    }]
-                }));
-            } else {
-                const resultStream = await getWebSocketResponse(slices, stream);
-                const reader = resultStream.getReader();
-                async function processData({ done, value }) {
-                    if (done) {
-                        res.write('\ndata: [DONE]');
-                        return;
-                    }
-                    response_data = {
-                        id,
-                        created,
+            try {
+                if (!stream) {
+                    const result = await getWebSocketResponse(slices, stream);
+                    console.log(result)
+                    res.setHeader('Content-Type', 'application/json');
+                    res.write(JSON.stringify({
+                        id, created,
                         object: 'chat.completion',
                         model: modelName,
                         choices: [{
-                            delta: {
+                            message: {
                                 role: 'assistant',
-                                content: value.toString(),
+                                content: result,
                             },
-                            finish_reason: 'continue',
+                            finish_reason: 'stop',
                             index: 0,
-                        }],
-                    };
-                    res.write('\ndata: ' + JSON.stringify(response_data));
-                    const nextChunk = await reader.read();
-                    await processData(nextChunk);
-                }
+                        }]
+                    }));
+                } else {
+                    const resultStream = await getWebSocketResponse(slices, stream);
+                    const reader = resultStream.getReader();
+                    async function processData({ done, value }) {
+                        if (done) {
+                            res.write('\ndata: [DONE]');
+                            return;
+                        }
+                        response_data = {
+                            id,
+                            created,
+                            object: 'chat.completion',
+                            model: modelName,
+                            choices: [{
+                                delta: {
+                                    role: 'assistant',
+                                    content: value.toString(),
+                                },
+                                finish_reason: 'continue',
+                                index: 0,
+                            }],
+                        };
+                        res.write('\ndata: ' + JSON.stringify(response_data));
+                        const nextChunk = await reader.read();
+                        await processData(nextChunk);
+                    }
 
-                const firstChunk = await reader.read();
-                await processData(firstChunk);
+                    const firstChunk = await reader.read();
+                    await processData(firstChunk);
+                }
+            } catch (err) {
+                console.error("Error while sending message/replying", err);
+                res.end();
             }
         } else {
             res.setHeader('Content-Type', 'application/json');

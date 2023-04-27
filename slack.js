@@ -15,13 +15,15 @@ function Uuidv4() {
 
 async function sendMessage(message) {
   return new Promise((resolve, reject) => {
-    const form = createBaseForm();
 
+    const blocks_json = [{ "type": "rich_text", "elements": [{ "type": "rich_text_section", "elements": [{ "type": "text", "text": message }] }] }];
+    const blocks_txt = JSON.stringify(blocks_json);
+    const form = createBaseForm();
     form.append('ts', convertToUnixTime(new Date()));
     form.append('type', 'message');
     form.append('xArgs', '{}');
     form.append('unfurl', '[]');
-    form.append('blocks', `[{"type":"rich_text","elements":[{"type":"rich_text_section","elements":[{"type":"text","text":"${message}"}]}]}]`);
+    form.append('blocks', blocks_txt);
     form.append('include_channel_perm_error', 'true');
     form.append('client_msg_id', Uuidv4());
     form.append('_x_reason', 'webapp_message_send');
@@ -36,15 +38,16 @@ async function sendMessage(message) {
 
     const req = https.request(`https://${TEAM_ID}.slack.com/api/chat.postMessage`, options, async (res) => {
       try {
+        console.log("\nblocks length:", blocks_txt.length);
         const response = await readBody(res, true);
         if (!response.ok) {
-          console.error("Error while sending message:", response.error, "\nrequest:", form.getBuffer(), "\n")
-          throw new Error(response.error);
+          reject(new Error("message response:" + response.error.toString() + "\nrequest:" + form.getBuffer() + "\n"));
+          return;
         }
         resolve(response);
       } catch (error) {
         console.error(error);
-        reject(error);
+        reject(new Error("while sending message " + " request:" + form.getBuffer() + "\n"));
       }
     });
 
@@ -83,7 +86,7 @@ async function editMessage(ts, newText) {
         resolve(response);
       } catch (error) {
         console.error(error);
-        reject(error);
+        reject(new Error("editMessage" + " request:" + form.getBuffer() + "\n"));
       }
     });
 
@@ -120,7 +123,7 @@ async function sendChatReset() {
         resolve(response); // Resolve with the response data
       } catch (error) {
         console.error(error);
-        reject(error); // Reject with the error
+        reject(new Error("sendChatReset: " + " request:" + form.getBuffer() + "\n"));
       }
     });
 
@@ -172,14 +175,24 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
         console.log("Sending message %d/%d", messageIndex, messages.length - 1);
         let is_last_message = messageIndex == messages.length - 1
         const prompt = buildPrompt(messages[messageIndex], is_last_message);
-        sentTs = await sendMessage(prompt).ts;
+        try {
+          response = await sendMessage(prompt);
+          sentTs = response.ts;
+        } catch (error) {
+          console.error(error.stack);
+          throw (new Error(`sendNextPrompt: ${error.message}`))
+        }
         console.log("Sent %d", messageIndex);
         messageIndex++;
       }
     };
 
-    await sendNextPrompt();
-    await wait(200);
+    try {
+      await sendNextPrompt();
+    } catch (error) {
+      console.error(error);
+      reject(new Error(`sendNextPrompt: ${error.message}`));
+    }
 
     let typingString = "\n\n_Typing…_";
 
@@ -196,7 +209,12 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                 // while context to send still...
                 if (!data.message.text.endsWith(typingString)) {
                   // if bot stopped responding to previous message, send the next one
-                  await sendNextPrompt();
+                  try {
+                    await sendNextPrompt();
+                  } catch (error) {
+                    console.error(error);
+                    reject(new Error(`Error while sending next prompt: ${error.message}`));
+                  }
                 }
               } else {
                 // all context sent, getting actual reply
@@ -216,8 +234,8 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
             }
           }
         } catch (error) {
-          console.error('Error parsing message:', error);
-          reject(error);
+          console.error(error);
+          reject(new Error("getWebSocketResponse:"));
         }
       });
 
@@ -245,7 +263,13 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     // while context to send still...
                     if (!data.message.text.endsWith(typingString)) {
                       // if bot stopped responding to previous message, send the next one
-                      await sendNextPrompt();
+                      try {
+                        await sendNextPrompt();
+                      } catch (error) {
+                        websocket.close(1000, 'Connection closed by client');
+                        console.error(error);
+                        controller.error(new Error(`Error while sending next prompt: ${error.message}`));
+                      }
                     }
                   } else {
                     // all context sent, getting actual reply
@@ -273,8 +297,8 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                 }
               }
             } catch (error) {
-              console.error('Error parsing message:', error);
-              controller.error(error);
+              console.error(error);
+              controller.error(new Error("getWebSocketResponse:"));
             }
           });
           websocket.on('error', (error) => {

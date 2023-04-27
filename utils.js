@@ -38,8 +38,7 @@ function preparePrompt(messages) {
 
 function buildPrompt(messages) {
   prompt = preparePrompt(messages);
-  const escapedPrompt = prompt.replace(/\r?\n|\r/g, '\\n').replace(/"/g, '\\"');
-  return escapedPrompt;
+  return prompt;
 };
 
 const readBody = (res, json) => new Promise((resolve, reject) => {
@@ -65,7 +64,7 @@ function getJailContext() {
 }
 
 function removeJailContextFromMessage(message) {
-  let escapedJailContext = getBlankPrompt().replace(/\r?\n|\r/g, '\\n').replace(/"/g, '\\"');
+  let escapedJailContext = getBlankPrompt();
   return message.slice(0, message.length - escapedJailContext.length);
 }
 
@@ -139,6 +138,11 @@ function findLastSentenceBreak(text) {
   return -1;
 }
 
+function getMessageLength(msg) {
+  const m_txt = buildPrompt([msg])
+  return m_txt.length
+}
+
 function splitJsonArray(jsonArray, maxLength) {
   const result = [];
   let currentChunk = [];
@@ -147,7 +151,7 @@ function splitJsonArray(jsonArray, maxLength) {
   const addObjectToChunk = (object, chunk) => {
     chunk.push(object);
     // + 2 added because `buildPrompt` uses `.join('\n\n');`
-    return currentLength + buildPrompt([object]).length + 2;
+    return currentLength + getMessageLength(object) + 2;
   };
 
   const appendTextToContent = (object, text) => {
@@ -169,7 +173,7 @@ function splitJsonArray(jsonArray, maxLength) {
       currentMsg = jsonArray[i];
     }
     prevIdx = i;
-    const msgLength = buildPrompt([currentMsg]).length + 2;
+    const msgLength = getMessageLength(currentMsg) + 2;
     if (currentLength + msgLength + textOverhead <= maxLength) {
       currentLength = addObjectToChunk(currentMsg, currentChunk);
     } else {
@@ -196,7 +200,7 @@ function splitJsonArray(jsonArray, maxLength) {
         // I don't add her to the next chunk here because it could hypothetically need a split too
         currentMsg = { ...currentMsg, content: splitContent[1], role: "SPLIT_ROLE" };
         i--; // so you don't go to next obj, and process this one instead
-        console.log("split into ", buildPrompt([msgFirstSplit]).length, buildPrompt([currentMsg]).length)
+        console.log("split into ", getMessageLength(msgFirstSplit), getMessageLength(currentMsg))
       }
     }
   }
@@ -209,9 +213,9 @@ function splitJsonArray(jsonArray, maxLength) {
     const lastChunk = result[result.length - 1];
     const lastObjectInLastChunk = lastChunk[lastChunk.length - 1];
     const lastObjectWithAssistant = appendTextToContent(lastObjectInLastChunk, assistant);
-    const lastObjectWithAssistantLength = buildPrompt([lastObjectWithAssistant]).length + 2;
+    const lastObjectWithAssistantLength = getMessageLength(lastObjectWithAssistant) + 2;
 
-    if (currentLength - (buildPrompt([lastObjectInLastChunk]).length + 2) + lastObjectWithAssistantLength <= maxLength) {
+    if (currentLength - (getMessageLength(lastObjectInLastChunk) + 2) + lastObjectWithAssistantLength <= maxLength) {
       lastChunk[lastChunk.length - 1] = lastObjectWithAssistant;
     } else {
       console.warn("Something is very wrong")
