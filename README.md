@@ -56,9 +56,11 @@ Leave that empty.
 
 First, if you haven't used Claude on Slack yet, sent it a test message and press Accept when it gives you the TOS.
 
-Make sure that in the API(Plug) tab of SillyTavern you have OpenAI selected. Put random text in the API Key field. Open OpenAI settings(sliders tab).
+Make sure that in the API(Plug) tab of SillyTavern you have OpenAI selected. Put random text in the API Key field.
 
-Start start.bat, copy the address in the console as a reverse proxy in SillyTavern, select GPT-4 as the OpenAI Mode. In the API tab, hit connect. Congratulations!
+Run start.bat. In the console, you'll see a local IP address. Copy it.
+
+In SillyTavern, open OpenAI settings(sliders tab). Select GPT-4 as the OpenAI Mode. In the Reverse Proxy box under that, paste in the IP in your clipboard. In the API tab, hit connect. Congratulations!
 
 
 <h1 align="center">Troubleshooting</h1>
@@ -76,6 +78,6 @@ Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararct
 
 Original code by Barbariskaa (https://github.com/Barbariskaa/Spermack)
 
-Streaming update by Bruno FS (https://github.com/bfs15/Spermack)
+Streaming and many other fixes by Bruno FS (https://github.com/bfs15)
 
 Translation/Readme by AmmoniaM <3
