@@ -15,12 +15,21 @@ async function main() {
                 stream,
             } = body;
             // console.log("messages\n",messages);
+            // remove trailing whitespace from messages
+            messages.forEach(message => {
+                message.content = message.content.replace(/\s+$/gm, "");
+            });
             slices = splitJsonArray(messages, 12000);
 
             const id = `chatcmpl-${(Math.random().toString(36).slice(2))}`;
             const created = Math.floor(Date.now() / 1000);
-            
-            await sendChatReset();
+            try {
+                await sendChatReset();
+            } catch (err) {
+                console.error("Claude chat reset error");
+                console.log("!!!! CHECK YOUR TOKENS, COOKIES ./config.js");
+                res.end();
+            }
             if (!stream) {
                 const result = await getWebSocketResponse(slices, stream);
                 console.log(result)
