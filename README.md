@@ -76,6 +76,6 @@ Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararct
 
 Original code by Barbariskaa (https://github.com/Barbariskaa/Spermack)
 
-Streaming update by Bruno FS (https://github.com/bfs15/Spermack)
+Streaming and many other fixes by Bruno FS (https://github.com/bfs15/Spermack)
 
 Translation/Readme by AmmoniaM <3
