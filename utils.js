@@ -1,7 +1,7 @@
 const FormData = require('form-data');
 
 const { TOKEN, COOKIE, TEAM_ID, CLAUDE } = require('./config');
-const { jail_context } = require('./config');
+const { jail_context, include_assistant_tag } = require('./config');
 
 const wait = (duration) => {
   return new Promise((resolve) => {
@@ -11,7 +11,28 @@ const wait = (duration) => {
   });
 };
 
-function buildPrompt(messages, is_last_message=true) {
+
+function preparePrompt(messages) {
+  return messages.filter(m => m.content?.trim()).map(m => {
+    let author = '';
+    switch (m.role) {
+      case 'user': author = 'Human'; break;
+      case 'assistant': author = 'Assistant'; break;
+      case 'system':
+        if (m.name) {
+          author = m.name;
+        } else {
+          author = 'System Note';
+        }
+        break;
+      default: author = m.role; break;
+    }
+
+    return `${author}: ${m.content.trim()}`;
+  }).join('\n\n');
+}
+
+function buildPrompt(messages, is_last_message = true) {
   prompt = preparePrompt(messages, is_last_message);
   const escapedPrompt = prompt.replace(/\r?\n|\r/g, '\\n').replace(/"/g, '\\"');
   return escapedPrompt;
@@ -44,33 +65,6 @@ function removeJailContextFromMessage(message) {
   return message.slice(0, message.length - escapedJailContext.length);
 }
 
-function preparePrompt(messages) {
-  return messages.filter(m => m.content?.trim()).map(m => {
-      let author = '';
-      switch (m.role) {
-          case 'user': author = 'Human'; break;
-          case 'assistant': author = 'Assistant'; break;
-          case 'system': author = 'System Note'; break;
-          default: author = m.role; break;
-      }
-
-      return `${author}: ${m.content.trim()}`;
-  }).join('\n\n');
-}
-
-const currentTime = () => {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
-  
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
-};
-
 const headers = {
   'Cookie': `d=${COOKIE};`,
   'User-Agent':	'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0',
@@ -79,13 +73,12 @@ const headers = {
 function splitJsonArray(jsonArray, maxLength) {
   const result = [];
   let currentChunk = [];
-  let currentLength = 2; // Accounts for the opening and closing square brackets in the JSON array
-
-  const assistant = "\n\nAssistant: ";
+  let currentLength = 0;
 
   const addObjectToChunk = (object, chunk) => {
     chunk.push(object);
-    return currentLength + JSON.stringify(object).length + 1;
+    // + 2 added because `buildPrompt` uses `.join('\n\n');`
+    return currentLength + buildPrompt([object]).length + 2;
   };
 
   const appendTextToContent = (object, text) => {
@@ -94,23 +87,24 @@ function splitJsonArray(jsonArray, maxLength) {
     return newObj;
   };
 
-  for (const obj of jsonArray) {
-    const objLength = JSON.stringify(obj).length + 1;
+  const assistant = "\n\nAssistant: ";
+  const textOverhead = Math.max(getJailContext().length, assistant.length);
 
-    if (currentLength + objLength <= maxLength) {
+  for (const obj of jsonArray) {
+    const objLength = buildPrompt([obj]).length + 2;
+
+    if (currentLength + objLength + textOverhead <= maxLength) {
       currentLength = addObjectToChunk(obj, currentChunk);
     } else {
       const lastObjectInChunk = currentChunk[currentChunk.length - 1];
       const lastObjectWithJail = appendTextToContent(lastObjectInChunk, getJailContext());
-      const lastObjectWithJailLength = JSON.stringify(lastObjectWithJail).length + 1;
-
-      if (currentLength - JSON.stringify(lastObjectInChunk).length - 1 + lastObjectWithJailLength <= maxLength) {
-        currentChunk[currentChunk.length - 1] = lastObjectWithJail;
-      }
+      // lastObject is guaranteed to fit (with jail) because it passes the check above, unlike the current object, on the previous loop.
+      currentChunk[currentChunk.length - 1] = lastObjectWithJail;
 
       result.push(currentChunk);
       currentChunk = [obj];
-      currentLength = 2 + objLength;
+      // - 2 because the `.join('\n\n');` from `buildPrompt` doesn't apply to the first message
+      currentLength = objLength - 2;
     }
   }
 
@@ -118,15 +112,18 @@ function splitJsonArray(jsonArray, maxLength) {
     result.push(currentChunk);
   }
 
-  const lastChunk = result[result.length - 1];
-  const lastObjectInLastChunk = lastChunk[lastChunk.length - 1];
-  const lastObjectWithAssistant = appendTextToContent(lastObjectInLastChunk, assistant);
-  const lastObjectWithAssistantLength = JSON.stringify(lastObjectWithAssistant).length + 1;
+  if (include_assistant_tag){
+    const lastChunk = result[result.length - 1];
+    const lastObjectInLastChunk = lastChunk[lastChunk.length - 1];
+    const lastObjectWithAssistant = appendTextToContent(lastObjectInLastChunk, assistant);
+    const lastObjectWithAssistantLength = buildPrompt([lastObjectWithAssistant]).length + 2;
 
-  if (currentLength - JSON.stringify(lastObjectInLastChunk).length - 1 + lastObjectWithAssistantLength <= maxLength) {
-    lastChunk[lastChunk.length - 1] = lastObjectWithAssistant;
+    if (currentLength - (buildPrompt([lastObjectInLastChunk]).length + 2) + lastObjectWithAssistantLength <= maxLength) {
+      lastChunk[lastChunk.length - 1] = lastObjectWithAssistant;
+    } else {
+      console.warn("Something is very wrong")
+    }
   }
-
   return result;
 }
 
@@ -146,6 +143,19 @@ function createBaseForm() {
   form.append('_x_sonic', 'true');
   return form;
 }
+
+const currentTime = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+};
 
 // Add the utility functions here
 // e.g. escapePrompt, readBody, preparePrompt, currentTime, headers, convertToUnixTime, createBaseForm
