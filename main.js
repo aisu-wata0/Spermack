@@ -4,28 +4,25 @@ const WebSocket = require('ws');
 const { readBody, splitJsonArray, wait } = require('./utils');
 const { getWebSocketResponse, sendChatReset } = require('./slack');
 
-const { streaming } = require('./config');
-
 async function main() {
     const server = http.createServer(async (req, res) => {
         if (req.method.toUpperCase() === 'POST') {
             const body = await readBody(req, true);
-            console.log(body)
+            console.log({ ...body, messages: "[look at tavern's log]"})
             const modelName = "Claude";
-
             const {
-                messages
+                messages,
+                stream,
             } = body;
-            console.log("messages\n",messages);
+            // console.log("messages\n",messages);
             slices = splitJsonArray(messages, 12000);
 
             const id = `chatcmpl-${(Math.random().toString(36).slice(2))}`;
             const created = Math.floor(Date.now() / 1000);
             
             await sendChatReset();
-            wait(500);
-            if (!streaming) {
-                const result = await getWebSocketResponse(slices, streaming);
+            if (!stream) {
+                const result = await getWebSocketResponse(slices, stream);
                 console.log(result)
                 res.setHeader('Content-Type', 'application/json');
                 res.write(JSON.stringify({
@@ -42,7 +39,7 @@ async function main() {
                     }]
                 }));
             } else {
-                const resultStream = await getWebSocketResponse(slices, streaming);
+                const resultStream = await getWebSocketResponse(slices, stream);
                 const reader = resultStream.getReader();
                 async function processData({ done, value }) {
                     if (done) {
