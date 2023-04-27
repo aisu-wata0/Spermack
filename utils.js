@@ -14,26 +14,30 @@ const wait = (duration) => {
 
 function preparePrompt(messages) {
   return messages.filter(m => m.content?.trim()).map(m => {
+    const f = ": ";
     let author = '';
     switch (m.role) {
-      case 'user': author = 'Human'; break;
-      case 'assistant': author = 'Assistant'; break;
+      case 'user': author = 'Human' + f; break;
+      case 'assistant': author = 'Assistant' + f; break;
       case 'system':
         if (m.name) {
-          author = m.name;
+          author = m.name + f;
         } else {
-          author = 'System Note';
+          author = 'System Note' + f;
         }
         break;
-      default: author = m.role; break;
+      case 'SPLIT_ROLE':
+        author = '';
+        break;
+      default: author = m.role + f; break;
     }
 
-    return `${author}: ${m.content.trim()}`;
+    return `${author}${m.content.trim()}`;
   }).join('\n\n');
 }
 
-function buildPrompt(messages, is_last_message = true) {
-  prompt = preparePrompt(messages, is_last_message);
+function buildPrompt(messages) {
+  prompt = preparePrompt(messages);
   const escapedPrompt = prompt.replace(/\r?\n|\r/g, '\\n').replace(/"/g, '\\"');
   return escapedPrompt;
 };
@@ -70,6 +74,71 @@ const headers = {
   'User-Agent':	'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0',
 }
 
+function splitMessageInTwo(text, maximumSplit) {
+  // Split text in two, find the latest paragraph, or a newline, or just a sentence break, in this priority, to break it, worst case, use a space.
+  // Important: be VERY carefull not to break markdown formatting
+  // for example, you might find a \n\n, but you can't split there if it's inside "```" quotations
+  // Check for paragraph break
+  let textToSearch = text;
+  // Paragraph break loop
+  while (true) {
+    let i = textToSearch.lastIndexOf('\n\n');
+    if (i !== -1 && !isInsideCodeBlock(textToSearch, i) &&
+      textToSearch.slice(0, i).length <= maximumSplit) {
+      return [text.slice(0, i), text.slice(i + 2)];
+    }
+    if (i === -1) break;
+    textToSearch = textToSearch.slice(0, i);
+  }
+  // Newline break loop
+  textToSearch = text;
+  while (true) {
+    let i = textToSearch.lastIndexOf('\n');
+    if (i !== -1 && !isInsideCodeBlock(textToSearch, i) &&
+      textToSearch.slice(0, i).length <= maximumSplit) {
+      return [text.slice(0, i), text.slice(i + 1)];
+    }
+    if (i === -1) break;
+    textToSearch = textToSearch.slice(0, i);
+  }
+  // Sentence break loop
+  textToSearch = text;
+  while (true) {
+    let i = findLastSentenceBreak(textToSearch);
+    if (i !== -1 && !isInsideCodeBlock(textToSearch, i) &&
+      textToSearch.slice(0, i + 1).length <= maximumSplit) {
+      return [text.slice(0, i), text.slice(i + 1)];
+    }
+    if (i === -1) break;
+    textToSearch = textToSearch.slice(0, i);
+  }
+  // Everything failed, split at maximum
+  return [text.slice(0, maximumSplit), text.slice(maximumSplit + 1)];
+}
+
+function isInsideCodeBlock(text, index) {
+  let textUpToIndex = text.slice(0, index);
+  let matches = textUpToIndex.match(/^```|\n```/gm);
+  if (matches) {
+    let numDelimiters = matches.length;
+    return numDelimiters % 2 === 1;
+  }
+  return false;
+}
+
+function findLastSentenceBreak(text) {
+  let sentenceBreaks = /[.!?]$/gm;
+  let matches = text.match(sentenceBreaks);
+  if (matches) {
+    let lastIndex = 0;
+    for (let i = 0; i < matches.length; i++) {
+      lastIndex = text.lastIndexOf(matches[i]);
+    }
+    return lastIndex;
+  }
+  return -1;
+}
+
 function splitJsonArray(jsonArray, maxLength) {
   const result = [];
   let currentChunk = [];
@@ -89,22 +158,46 @@ function splitJsonArray(jsonArray, maxLength) {
 
   const assistant = "\n\nAssistant: ";
   const textOverhead = Math.max(getJailContext().length, assistant.length);
-
-  for (const obj of jsonArray) {
-    const objLength = buildPrompt([obj]).length + 2;
-
-    if (currentLength + objLength + textOverhead <= maxLength) {
-      currentLength = addObjectToChunk(obj, currentChunk);
+  if (jsonArray.length == 0) {
+    return [];
+  }
+  let currentMsg = jsonArray[0];
+  let prevIdx = 0;
+  for (let i = 0; i < jsonArray.length; i++) {
+    if (i != prevIdx) {
+      // ctrl+f 'i--'
+      currentMsg = jsonArray[i];
+    }
+    prevIdx = i;
+    const msgLength = buildPrompt([currentMsg]).length + 2;
+    if (currentLength + msgLength + textOverhead <= maxLength) {
+      currentLength = addObjectToChunk(currentMsg, currentChunk);
     } else {
-      const lastObjectInChunk = currentChunk[currentChunk.length - 1];
-      const lastObjectWithJail = appendTextToContent(lastObjectInChunk, getJailContext());
-      // lastObject is guaranteed to fit (with jail) because it passes the check above, unlike the current object, on the previous loop.
-      currentChunk[currentChunk.length - 1] = lastObjectWithJail;
+      if (currentChunk.length > 0) {
+        const lastObjectInChunk = currentChunk[currentChunk.length - 1];
+        const lastObjectWithJail = appendTextToContent(lastObjectInChunk, getJailContext());
+        currentChunk[currentChunk.length - 1] = lastObjectWithJail;
 
-      result.push(currentChunk);
-      currentChunk = [obj];
-      // - 2 because the `.join('\n\n');` from `buildPrompt` doesn't apply to the first message
-      currentLength = objLength - 2;
+        result.push(currentChunk);
+        currentChunk = [currentMsg];
+        // - 2 because the `.join('\n\n');` from `buildPrompt` doesn't apply to the first message
+        currentLength = msgLength - 2;
+      } else {
+        console.log("Message too big! It doesn't fit in a single chat message!", currentMsg.content.length)
+        let splitContent = splitMessageInTwo(currentMsg.content, maxLength - textOverhead)
+        let msgFirstSplit = { ...currentMsg, content: splitContent[0] };
+
+        const msgFirstSplitWithJail = appendTextToContent(msgFirstSplit, getJailContext());
+        currentChunk.push(msgFirstSplitWithJail);
+        result.push(currentChunk);
+        currentChunk = [];
+        currentLength = 0;
+        // the other one goes to next loop, crazy I know
+        // I don't add her to the next chunk here because it could hypothetically need a split too
+        currentMsg = { ...currentMsg, content: splitContent[1], role: "SPLIT_ROLE" };
+        i--; // so you don't go to next obj, and process this one instead
+        console.log("split into ", buildPrompt([msgFirstSplit]).length, buildPrompt([currentMsg]).length)
+      }
     }
   }
 

@@ -37,6 +37,10 @@ async function sendMessage(message) {
     const req = https.request(`https://${TEAM_ID}.slack.com/api/chat.postMessage`, options, async (res) => {
       try {
         const response = await readBody(res, true);
+        if (!response.ok) {
+          console.error("Error while sending message:", response.error, "\nrequest:", form.getBuffer(), "\n")
+          throw new Error(response.error);
+        }
         resolve(response);
       } catch (error) {
         console.error(error);
