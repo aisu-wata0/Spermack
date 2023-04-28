@@ -171,7 +171,7 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
       let retryOnErrorString = key;
       let retryCount = retries[key]
       if (retryCount <= 0) {
-        throw error;
+        continue;
       }
       if (error.message.includes(retryOnErrorString)) {
         console.log(retryOnErrorString, "retries left:", retryCount);
@@ -182,9 +182,14 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
         retries[retryOnErrorString] = retries[retryOnErrorString] - 1;
         return streamResponseRetryable(slices, sendChunks, retries, retryDelay);
       }
-    } 
-    console.error(error);
-    throw new Error(error.message + "| " + "streamResponseRetryable");
+    }
+    for (let key in retries) {
+      if (retries[key] > 0) {
+        console.error(error);
+        throw new Error(error.message + "| " + "retryableWebSocketResponse");
+      }
+    }
+    throw new Error("Retries exhausted");
   }
 }
 
@@ -201,7 +206,7 @@ async function retryableWebSocketResponse(messages, streaming, editing = false, 
       let retryOnErrorString = key;
       let retryCount = retries[key]
       if (retryCount <= 0) {
-        throw error;
+        continue;
       }
       if (error.message.includes(retryOnErrorString)) {
         console.log(retryOnErrorString, "retries left:", retryCount);
@@ -213,8 +218,14 @@ async function retryableWebSocketResponse(messages, streaming, editing = false, 
         return retryableWebSocketResponse(messages, streaming, editing, retries, retryDelay);
       }
     }
-    console.error(error);
-    throw new Error(error.message + "| " + "retryableWebSocketResponse");
+
+    for (let key in retries) {
+      if (retries[key] > 0) {
+        console.error(error);
+        throw new Error(error.message + "| " + "retryableWebSocketResponse");
+      } 
+    }
+    throw new Error("Retries exhausted");
   }
 }
 
