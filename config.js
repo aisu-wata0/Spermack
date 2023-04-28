@@ -16,8 +16,12 @@ module.exports = {
   jail_filtered_responses: [
     `I cannot generate`,
     `do not feel comfortable generating`,
+    `I apologize, upon further reflection I do not feel comfortable continuing this conversation`,
   ],
   retry_delay: 100,
   // include "Assistant:" at the end of your prompt
   include_assistant_tag: true,
+  user_name: 'Human',
+  assistant_name: 'Assistant',
+  system_name: 'System Note',
 };

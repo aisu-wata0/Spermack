@@ -1,6 +1,10 @@
 const FormData = require('form-data');
 
-const { TOKEN, COOKIE, TEAM_ID, CLAUDE } = require('./config');
+const { TOKEN, COOKIE, TEAM_ID, CLAUDE,
+  user_name,
+  assistant_name,
+  system_name,
+} = require('./config');
 const { jail_context, include_assistant_tag } = require('./config');
 
 const wait = (duration) => {
@@ -17,13 +21,13 @@ function preparePrompt(messages) {
     const f = ": ";
     let author = '';
     switch (m.role) {
-      case 'user': author = 'Human' + f; break;
-      case 'assistant': author = 'Assistant' + f; break;
+      case 'user': author = user_name + f; break;
+      case 'assistant': author = assistant_name + f; break;
       case 'system':
         if (m.name) {
           author = m.name + f;
         } else {
-          author = 'System Note' + f;
+          author = system_name + f;
         }
         break;
       case 'SPLIT_ROLE':
