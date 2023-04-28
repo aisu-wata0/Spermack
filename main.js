@@ -3,7 +3,6 @@ const WebSocket = require('ws');
 
 const { readBody, splitJsonArray } = require('./utils');
 const { retryableWebSocketResponse, streamResponseRetryable } = require('./slack');
-const { readBody, splitJsonArray } = require('./config');
 
 async function main() {
     const server = http.createServer(async (req, res) => {

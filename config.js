@@ -12,6 +12,11 @@ module.exports = {
     `Acknowledged`,
     `(Acknowledged)`,
   ],
+  jail_retry_attempts: 3,
+  jail_filtered_responses: [
+    `I cannot generate`,
+    `do not feel comfortable generating`,
+  ],
   // include "Assistant:" at the end of your prompt
   include_assistant_tag: true,
 };

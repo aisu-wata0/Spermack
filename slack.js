@@ -6,6 +6,8 @@ const {
   blank_prompt,
   jail_context_expected_responses,
   jail_context_retry_attempts,
+  jail_retry_attempts,
+  jail_filtered_responses,
 } = require('./config');
 const { readBody, headers, createBaseForm, convertToUnixTime, currentTime, buildPrompt, removeJailContextFromMessage, wait, } = require('./utils');
 
@@ -150,43 +152,64 @@ async function streamResponse(slices, sendChunks) {
   }
 }
 
-async function streamResponseRetryable(slices, sendChunks, retries = jail_context_retry_attempts, retryDelay = 300, retryOnErrorString = "Jailbreak context failed") {
+async function streamResponseRetryable(slices, sendChunks, retries = {
+  "Jailbreak context failed": jail_context_retry_attempts,
+  "Jailbreak failed": jail_retry_attempts,
+}, retryDelay = 0) {
   try {
     const response = await streamResponse(slices, sendChunks);
     return response;
   } catch (error) {
-    if (retries <= 0) {
-      throw error;
-    }
-    if (error.message.includes(retryOnErrorString)) {
-      console.log("+ Retrying: retryable error found while attempted to streamResponse:", retryOnErrorString);
-      if (retryDelay) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+    for (let key in retries) {
+      let retryOnErrorString = key;
+      let retryCount = retries[key]
+      if (retryCount <= 0) {
+        throw error;
       }
-      return streamResponseRetryable(slices, sendChunks, retries - 1, retryDelay, retryOnErrorString);
-    } else {
-      console.error(error);
-      throw new Error(error.message + "| " + "streamResponseRetryable");
+      if (error.message.includes(retryOnErrorString)) {
+        console.log("+ Retrying: retryable error found while attempted to streamResponse:", retryOnErrorString);
+        if (retryDelay) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+        return streamResponseRetryable(slices, sendChunks, {
+          ...retries,
+          retryOnErrorString: retryCount - 1,
+        }, retryDelay);
+      } else {
+        console.error(error);
+        throw new Error(error.message + "| " + "streamResponseRetryable");
+      }
     }
   }
 }
 
-async function retryableWebSocketResponse(messages, streaming, editing = false, retries = jail_context_retry_attempts, retryDelay = 100, retryOnErrorString = "Jailbreak context failed") {
+async function retryableWebSocketResponse(messages, streaming, editing = false, retries = {
+  "Jailbreak context failed": jail_context_retry_attempts,
+  "Jailbreak failed": jail_retry_attempts,
+}, retryDelay = 0) {
   try {
     const response = await getWebSocketResponse(messages, streaming, editing);
     return response;
   } catch (error) {
-    console.log("================= ", retries , "error.message", error.message);
-    if (retries <= 0) {
-      throw error;
-    }
-    if (error.message.includes(retryOnErrorString)) {
-      if (retryDelay) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+    for (let key in retries) {
+      let retryOnErrorString = key;
+      let retryCount = retries[key]
+      if (retryCount <= 0) {
+        throw error;
       }
-      return retryableWebSocketResponse(messages, streaming, editing, retries - 1, retryDelay, retryOnErrorString);
-    } else {
-      throw error;
+      if (error.message.includes(retryOnErrorString)) {
+        console.log("+ Retrying: retryable error found while attempted to streamResponse:", retryOnErrorString);
+        if (retryDelay) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+        return retryableWebSocketResponse(messages, streaming, editing, {
+          ...retries,
+          retryOnErrorString: retryCount - 1,
+        }, retryDelay);
+      } else {
+        console.error(error);
+        throw new Error(error.message + "| " + "retryableWebSocketResponse");
+      }
     }
   }
 }
@@ -275,6 +298,16 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
       return true
     }
 
+    const checkJailbreak = (currentTextTotal) => {
+      currentTextTotal = currentTextTotal.trim();
+      for (let filtered_response of jail_filtered_responses) {
+        if (currentTextTotal.includes(filtered_response)) {
+          return true
+        }
+      }
+      return false
+    }
+
     if (!streaming) {
       // resolve the full text at the end only
       websocket.on('message', async (message) => {
@@ -290,7 +323,6 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                   // if bot stopped responding to previous message, send the next one
                   // but first check if jail_context worked
                   let currentTextTotal = data.message.text;
-                  console.log("currentTextTotal " + "'" + currentTextTotal + "'", checkJailbreakContext(currentTextTotal));
                   if (checkJailbreakContext(currentTextTotal)) {
                     throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
                   }
@@ -303,7 +335,6 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                 } else {
                   let actualLength = data.message.text.length - typingString.length;
                   let currentTextTotal = data.message.text.slice(0, actualLength);
-                  console.log("currentTextTotal " + "'" + currentTextTotal + "'");
                   if (checkJailbreakContext(currentTextTotal)) {
                     throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
                   }
@@ -312,9 +343,18 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                 // all context sent, getting actual reply
                 if (!data.message.text.endsWith(typingString)) {
                   // when typing finished, this is the end of the message
+                  let currentTextTotal = data.message.text;
+                  if (checkJailbreak(currentTextTotal)) {
+                    throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
+                  }
                   websocket.close();
                   resolve(data.message.text);
                 } else {
+                  let actualLength = data.message.text.length - typingString.length;
+                  let currentTextTotal = data.message.text.slice(0, actualLength);
+                  if (checkJailbreak(currentTextTotal)) {
+                    throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
+                  }
                   console.log(`${currentTime()} fetched ${data.message.text.length} characters...`);
                 }
               }
@@ -357,7 +397,6 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                       // if bot stopped responding to previous message, send the next one
                       // but first check if jail_context worked
                       let currentTextTotal = data.message.text;
-                      console.log("currentTextTotal " + "'" + currentTextTotal + "'", checkJailbreakContext(currentTextTotal));
                       if (checkJailbreakContext(currentTextTotal)) {
                         throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
                       }
@@ -370,7 +409,6 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     } else {
                       let actualLength = data.message.text.length - typingString.length;
                       let currentTextTotal = data.message.text.slice(0, actualLength);
-                      console.log("currentTextTotal " + "'" + currentTextTotal + "'");
                       if (checkJailbreakContext(currentTextTotal)) {
                         throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`);
                       }
@@ -379,6 +417,10 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     // all context sent, getting actual reply
                     if (!data.message.text.endsWith(typingString)) {
                       // when typing finished, this is the end of the message
+                      let currentTextTotal = data.message.text;
+                      if (checkJailbreak(currentTextTotal)) {
+                        throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
+                      }
                       let currentTextChunk = data.message.text.slice(currentSlice);
                       currentSlice = data.message.text.length;
                       console.log("Finished:", data.message.text.length, " characters");
@@ -388,6 +430,9 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     } else {
                       let actualLength = data.message.text.length - typingString.length
                       let currentTextChunk = data.message.text.slice(currentSlice, actualLength);
+                      if (checkJailbreak(currentTextTotal)) {
+                        throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
+                      }
                       currentSlice = actualLength
                       console.log("Sending :", currentTextChunk.length, " characters");
                       controller.enqueue(currentTextChunk);
