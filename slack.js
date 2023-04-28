@@ -8,6 +8,7 @@ const {
   jail_context_retry_attempts,
   jail_retry_attempts,
   jail_filtered_responses,
+  retry_delay,
 } = require('./config');
 const { readBody, headers, createBaseForm, convertToUnixTime, currentTime, buildPrompt, removeJailContextFromMessage, wait, } = require('./utils');
 
@@ -155,11 +156,12 @@ async function streamResponse(slices, sendChunks) {
 async function streamResponseRetryable(slices, sendChunks, retries = {
   "Jailbreak context failed": jail_context_retry_attempts,
   "Jailbreak failed": jail_retry_attempts,
-}, retryDelay = 0) {
+}, retryDelay = retry_delay) {
   try {
     const response = await streamResponse(slices, sendChunks);
     return response;
   } catch (error) {
+    console.log("retries left:", retries);
     for (let key in retries) {
       let retryOnErrorString = key;
       let retryCount = retries[key]
@@ -186,12 +188,13 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
 async function retryableWebSocketResponse(messages, streaming, editing = false, retries = {
   "Jailbreak context failed": jail_context_retry_attempts,
   "Jailbreak failed": jail_retry_attempts,
-}, retryDelay = 0) {
+}, retryDelay = retry_delay) {
   try {
     const response = await getWebSocketResponse(messages, streaming, editing);
     return response;
   } catch (error) {
     for (let key in retries) {
+      console.log("retries left:", retries);
       let retryOnErrorString = key;
       let retryCount = retries[key]
       if (retryCount <= 0) {
@@ -332,12 +335,6 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     console.error(error);
                     reject(new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`));
                   }
-                } else {
-                  let actualLength = data.message.text.length - typingString.length;
-                  let currentTextTotal = data.message.text.slice(0, actualLength);
-                  if (checkJailbreakContext(currentTextTotal)) {
-                    throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
-                  }
                 }
               } else {
                 // all context sent, getting actual reply
@@ -352,10 +349,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                 } else {
                   let actualLength = data.message.text.length - typingString.length;
                   let currentTextTotal = data.message.text.slice(0, actualLength);
-                  if (checkJailbreak(currentTextTotal)) {
-                    throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
-                  }
-                  console.log(`${currentTime()} fetched ${data.message.text.length} characters...`);
+                  console.log(`${currentTime()} fetched ${currentTextTotal.length} characters...`);
                 }
               }
             }
@@ -406,12 +400,6 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                         console.error(error);
                         throw new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`);
                       }
-                    } else {
-                      let actualLength = data.message.text.length - typingString.length;
-                      let currentTextTotal = data.message.text.slice(0, actualLength);
-                      if (checkJailbreakContext(currentTextTotal)) {
-                        throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`);
-                      }
                     }
                   } else {
                     // all context sent, getting actual reply
@@ -430,9 +418,6 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     } else {
                       let actualLength = data.message.text.length - typingString.length
                       let currentTextChunk = data.message.text.slice(currentSlice, actualLength);
-                      if (checkJailbreak(currentTextTotal)) {
-                        throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
-                      }
                       currentSlice = actualLength
                       console.log("Sending :", currentTextChunk.length, " characters");
                       controller.enqueue(currentTextChunk);

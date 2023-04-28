@@ -65,6 +65,7 @@ async function main() {
                         res.write('\ndata: ' + JSON.stringify(response_data));
                     }
                     await streamResponseRetryable(slices, sendChunks);
+                    res.end();
                 }
             } catch (error) {
                 console.error(error)

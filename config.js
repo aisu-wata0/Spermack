@@ -17,6 +17,7 @@ module.exports = {
     `I cannot generate`,
     `do not feel comfortable generating`,
   ],
+  retry_delay: 100,
   // include "Assistant:" at the end of your prompt
   include_assistant_tag: true,
 };
