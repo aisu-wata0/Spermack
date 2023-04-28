@@ -336,7 +336,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     await sendNextPrompt();
                   } catch (error) {
                     console.error(error);
-                    reject(new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`));
+                    throw new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`);
                   }
                 }
               } else {
@@ -347,7 +347,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                   if (checkJailbreak(currentTextTotal)) {
                     throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
                   }
-                  websocket.close();
+                  websocket.close(1000, 'Connection closed by client');
                   resolve(data.message.text);
                 } else {
                   let actualLength = data.message.text.length - typingString.length;
@@ -364,17 +364,19 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
           }
         } catch (error) {
           console.error(error);
-          reject(new Error(error.message + "| " + "getWebSocketResponse:"));
+          websocket.close(1000, 'Connection closed by client');
+          reject(new Error(error.message + "| " + "getWebSocketResponse: "))
         }
       });
 
       websocket.on('error', (error) => {
-        console.error('WebSocket error:', error.toString());
-        reject(error);
+        console.error(error);
+        controller.error(new Error(error.message + "| " + 'WebSocket error'));
       });
-
       websocket.on('close', (code, reason) => {
-        console.log(`WebSocket closed with code ${code} and reason: ${reason.toString()}`);
+        if (code != 1000) {
+          console.log(`WebSocket closed with code ${code} and reason: ${reason.toString()}`);
+        }
       });
     } else {
       // resolve a ReadableStream to stream the websocket's response
