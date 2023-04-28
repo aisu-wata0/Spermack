@@ -66,6 +66,11 @@ In SillyTavern, open OpenAI settings(sliders tab). Select GPT-4 as the OpenAI Mo
 <h1 align="center">Troubleshooting</h1>
 
 
+<p align="center">{ ok: false, error: 'invalid_auth' }</p>
+
+Something with your config.js is incorrect. The most likely cause of this is you not including the "xoxc-" or "xoxd-" parts in your token/cookie.
+
+
 <p align="center">{ ok: false, error: 'invalid_blocks_format' }</p>
 
 Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararcter card or a in a conversation, this error will occur. Remove all backslashes to fix this.
