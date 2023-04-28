@@ -149,6 +149,9 @@ async function streamResponse(slices, sendChunks) {
   let nextChunk = await reader.read();
   while (true) {
     sendChunks(nextChunk);
+    if (nextChunk.done) {
+      return;
+    }
     nextChunk = await reader.read();
   }
 }
