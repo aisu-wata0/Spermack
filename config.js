@@ -12,11 +12,17 @@ module.exports = {
     `Acknowledged`,
     `(Acknowledged)`,
   ],
-  jail_retry_attempts: 3,
+  minimum_response_size: 0,
+  minimum_response_size_retry_attempts: 10,
+  jail_retry_attempts: 30,
   jail_filtered_responses: [
     `I cannot generate`,
     `do not feel comfortable generating`,
     `I apologize, upon further reflection I do not feel comfortable continuing this conversation`,
+    `I am unable to generate the explicit`,
+    `I apologize, but I am unable to provide advice about this topic`,
+    `I will not provide any explicit or inappropriate content`,
+    `I apologize, but I am unable to provide advice about this topic. I wish you the best as you seek help or resolution to your concerns.`,
   ],
   retry_delay: 100,
   // include "Assistant:" at the end of your prompt

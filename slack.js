@@ -9,6 +9,8 @@ const {
   jail_retry_attempts,
   jail_filtered_responses,
   retry_delay,
+  minimum_response_size,
+  minimum_response_size_retry_attempts,
 } = require('./config');
 const { readBody, headers, createBaseForm, convertToUnixTime, currentTime, buildPrompt, removeJailContextFromMessage, wait, } = require('./utils');
 
@@ -159,6 +161,7 @@ async function streamResponse(slices, sendChunks) {
 async function streamResponseRetryable(slices, sendChunks, retries = {
   "Jailbreak context failed": jail_context_retry_attempts,
   "Jailbreak failed": jail_retry_attempts,
+  "Retry, reply was": minimum_response_size_retry_attempts,
 }, retryDelay = retry_delay) {
   try {
     const response = await streamResponse(slices, sendChunks);
@@ -180,11 +183,10 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
           ...retries,
           retryOnErrorString: retryCount - 1,
         }, retryDelay);
-      } else {
-        console.error(error);
-        throw new Error(error.message + "| " + "streamResponseRetryable");
       }
-    }
+    } 
+    console.error(error);
+    throw new Error(error.message + "| " + "streamResponseRetryable");
   }
 }
 
@@ -212,11 +214,10 @@ async function retryableWebSocketResponse(messages, streaming, editing = false, 
           ...retries,
           retryOnErrorString: retryCount - 1,
         }, retryDelay);
-      } else {
-        console.error(error);
-        throw new Error(error.message + "| " + "retryableWebSocketResponse");
       }
     }
+    console.error(error);
+    throw new Error(error.message + "| " + "retryableWebSocketResponse");
   }
 }
 
@@ -347,6 +348,9 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                   if (checkJailbreak(currentTextTotal)) {
                     throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
                   }
+                  if (minimum_response_size && currentTextTotal.length < minimum_response_size) {
+                    throw new Error(`Retry, reply was: ${currentTextTotal}`)
+                  }
                   websocket.close(1000, 'Connection closed by client');
                   resolve(data.message.text);
                 } else {
@@ -413,6 +417,9 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                       let currentTextTotal = data.message.text;
                       if (checkJailbreak(currentTextTotal)) {
                         throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
+                      }
+                      if (minimum_response_size && currentTextTotal.length < minimum_response_size) {
+                        throw new Error(`Retry, reply was: ${currentTextTotal}`)
                       }
                       let currentTextChunk = data.message.text.slice(currentSlice);
                       currentSlice = data.message.text.length;
