@@ -179,10 +179,8 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
         if (retryDelay) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
-        return streamResponseRetryable(slices, sendChunks, {
-          ...retries,
-          retryOnErrorString: retryCount - 1,
-        }, retryDelay);
+        retries[retryOnErrorString] = retries[retryOnErrorString] - 1;
+        return streamResponseRetryable(slices, sendChunks, retries, retryDelay);
       }
     } 
     console.error(error);
@@ -211,10 +209,8 @@ async function retryableWebSocketResponse(messages, streaming, editing = false, 
         if (retryDelay) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
-        return retryableWebSocketResponse(messages, streaming, editing, {
-          ...retries,
-          retryOnErrorString: retryCount - 1,
-        }, retryDelay);
+        retries[retryOnErrorString] = retries[retryOnErrorString] - 1;
+        return retryableWebSocketResponse(messages, streaming, editing, retries, retryDelay);
       }
     }
     console.error(error);
