@@ -167,7 +167,6 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
     const response = await streamResponse(slices, sendChunks);
     return response;
   } catch (error) {
-    console.log("retries left:", retries);
     for (let key in retries) {
       let retryOnErrorString = key;
       let retryCount = retries[key]
@@ -175,6 +174,7 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
         throw error;
       }
       if (error.message.includes(retryOnErrorString)) {
+        console.log(retryOnErrorString, "retries left:", retryCount);
         console.log("+ Retrying: retryable error found while attempted to streamResponse:", retryOnErrorString);
         if (retryDelay) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -193,19 +193,20 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
 async function retryableWebSocketResponse(messages, streaming, editing = false, retries = {
   "Jailbreak context failed": jail_context_retry_attempts,
   "Jailbreak failed": jail_retry_attempts,
+  "Retry, reply was": minimum_response_size_retry_attempts,
 }, retryDelay = retry_delay) {
   try {
     const response = await getWebSocketResponse(messages, streaming, editing);
     return response;
   } catch (error) {
     for (let key in retries) {
-      console.log("retries left:", retries);
       let retryOnErrorString = key;
       let retryCount = retries[key]
       if (retryCount <= 0) {
         throw error;
       }
       if (error.message.includes(retryOnErrorString)) {
+        console.log(retryOnErrorString, "retries left:", retryCount);
         console.log("+ Retrying: retryable error found while attempted to streamResponse:", retryOnErrorString);
         if (retryDelay) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
