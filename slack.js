@@ -2,7 +2,11 @@ const https = require('https');
 const WebSocket = require('ws');
 
 const { TOKEN, COOKIE, TEAM_ID, CLAUDE_MEMBER_ID } = require('./config');
-const { blank_prompt } = require('./config');
+const {
+  blank_prompt,
+  jail_context_expected_responses,
+  jail_context_retry_attempts,
+} = require('./config');
 const { readBody, headers, createBaseForm, convertToUnixTime, currentTime, buildPrompt, removeJailContextFromMessage, wait, } = require('./utils');
 
 function Uuidv4() {
@@ -47,7 +51,7 @@ async function sendMessage(message) {
         resolve(response);
       } catch (error) {
         console.error(error);
-        reject(new Error("while sending message " + " request:" + form.getBuffer() + "\n"));
+        reject(new Error(error.message + "| " + "while sending message " + " request:" + form.getBuffer() + "\n"));
       }
     });
 
@@ -86,7 +90,7 @@ async function editMessage(ts, newText) {
         resolve(response);
       } catch (error) {
         console.error(error);
-        reject(new Error("editMessage" + " request:" + form.getBuffer() + "\n"));
+        reject(new Error(error.message + "| " + "editMessage" + " request:" + form.getBuffer() + "\n"));
       }
     });
 
@@ -123,7 +127,7 @@ async function sendChatReset() {
         resolve(response); // Resolve with the response data
       } catch (error) {
         console.error(error);
-        reject(new Error("sendChatReset: " + " request:" + form.getBuffer() + "\n"));
+        reject(new Error(error.message + "| " + "sendChatReset: " + " request:" + form.getBuffer() + "\n"));
       }
     });
 
@@ -136,9 +140,66 @@ async function sendChatReset() {
   });
 }
 
+async function streamResponse(slices, sendChunks) {
+  const resultStream = await getWebSocketResponse(slices, true);
+  const reader = resultStream.getReader();
+  let nextChunk = await reader.read();
+  while (true) {
+    sendChunks(nextChunk);
+    nextChunk = await reader.read();
+  }
+}
+
+async function streamResponseRetryable(slices, sendChunks, retries = jail_context_retry_attempts, retryDelay = 300, retryOnErrorString = "Jailbreak context failed") {
+  try {
+    const response = await streamResponse(slices, sendChunks);
+    return response;
+  } catch (error) {
+    if (retries <= 0) {
+      throw error;
+    }
+    if (error.message.includes(retryOnErrorString)) {
+      console.log("+ Retrying: retryable error found while attempted to streamResponse:", retryOnErrorString);
+      if (retryDelay) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+      return streamResponseRetryable(slices, sendChunks, retries - 1, retryDelay, retryOnErrorString);
+    } else {
+      console.error(error);
+      throw new Error(error.message + "| " + "streamResponseRetryable");
+    }
+  }
+}
+
+async function retryableWebSocketResponse(messages, streaming, editing = false, retries = jail_context_retry_attempts, retryDelay = 100, retryOnErrorString = "Jailbreak context failed") {
+  try {
+    const response = await getWebSocketResponse(messages, streaming, editing);
+    return response;
+  } catch (error) {
+    console.log("================= ", retries , "error.message", error.message);
+    if (retries <= 0) {
+      throw error;
+    }
+    if (error.message.includes(retryOnErrorString)) {
+      if (retryDelay) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+      return retryableWebSocketResponse(messages, streaming, editing, retries - 1, retryDelay, retryOnErrorString);
+    } else {
+      throw error;
+    }
+  }
+}
 
 async function getWebSocketResponse(messages, streaming, editting = false) {
   return new Promise(async (resolve, reject) => {
+    try {
+      await sendChatReset();
+    } catch (error) {
+      console.error(error);
+      reject(new Error(error.message + "| " + "!!!! CHECK YOUR TOKENS, COOKIES./ config.js"))
+    }
+
     const websocketURL = `wss://wss-primary.slack.com/?token=${TOKEN}`;
 
     const websocket = new WebSocket(websocketURL, {
@@ -180,7 +241,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
           sentTs = response.ts;
         } catch (error) {
           console.error(error.stack);
-          throw (new Error(`sendNextPrompt: ${error.message}`))
+          throw (new Error(error.message + "| " + `sendNextPrompt: ${error.message}`))
         }
         console.log("Sent %d", messageIndex);
         messageIndex++;
@@ -191,10 +252,28 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
       await sendNextPrompt();
     } catch (error) {
       console.error(error);
-      reject(new Error(`sendNextPrompt: ${error.message}`));
+      reject(new Error(error.message + "| " + `sendNextPrompt: ${error.message}`));
     }
 
     let typingString = "\n\n_Typing…_";
+
+
+    const checkJailbreakContext = (currentTextTotal) => {
+      currentTextTotal = currentTextTotal.trim();
+      let maxLen = 0
+      for (let expected_response of jail_context_expected_responses) {
+        maxLen = Math.max(maxLen, expected_response.length)
+      }
+      if (currentTextTotal.length > maxLen) {
+        return true
+      }
+      for (let expected_response of jail_context_expected_responses) {
+        if (currentTextTotal.startsWith(expected_response.slice(0, currentTextTotal.length))) {
+          return false
+        }
+      }
+      return true
+    }
 
     if (!streaming) {
       // resolve the full text at the end only
@@ -209,11 +288,24 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                 // while context to send still...
                 if (!data.message.text.endsWith(typingString)) {
                   // if bot stopped responding to previous message, send the next one
+                  // but first check if jail_context worked
+                  let currentTextTotal = data.message.text;
+                  console.log("currentTextTotal " + "'" + currentTextTotal + "'", checkJailbreakContext(currentTextTotal));
+                  if (checkJailbreakContext(currentTextTotal)) {
+                    throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
+                  }
                   try {
                     await sendNextPrompt();
                   } catch (error) {
                     console.error(error);
-                    reject(new Error(`Error while sending next prompt: ${error.message}`));
+                    reject(new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`));
+                  }
+                } else {
+                  let actualLength = data.message.text.length - typingString.length;
+                  let currentTextTotal = data.message.text.slice(0, actualLength);
+                  console.log("currentTextTotal " + "'" + currentTextTotal + "'");
+                  if (checkJailbreakContext(currentTextTotal)) {
+                    throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
                   }
                 }
               } else {
@@ -235,7 +327,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
           }
         } catch (error) {
           console.error(error);
-          reject(new Error("getWebSocketResponse:"));
+          reject(new Error(error.message + "| " + "getWebSocketResponse:"));
         }
       });
 
@@ -263,12 +355,24 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                     // while context to send still...
                     if (!data.message.text.endsWith(typingString)) {
                       // if bot stopped responding to previous message, send the next one
+                      // but first check if jail_context worked
+                      let currentTextTotal = data.message.text;
+                      console.log("currentTextTotal " + "'" + currentTextTotal + "'", checkJailbreakContext(currentTextTotal));
+                      if (checkJailbreakContext(currentTextTotal)) {
+                        throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
+                      }
                       try {
                         await sendNextPrompt();
                       } catch (error) {
-                        websocket.close(1000, 'Connection closed by client');
                         console.error(error);
-                        controller.error(new Error(`Error while sending next prompt: ${error.message}`));
+                        throw new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`);
+                      }
+                    } else {
+                      let actualLength = data.message.text.length - typingString.length;
+                      let currentTextTotal = data.message.text.slice(0, actualLength);
+                      console.log("currentTextTotal " + "'" + currentTextTotal + "'");
+                      if (checkJailbreakContext(currentTextTotal)) {
+                        throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`);
                       }
                     }
                   } else {
@@ -298,12 +402,13 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
               }
             } catch (error) {
               console.error(error);
-              controller.error(new Error("getWebSocketResponse:"));
+              websocket.close(1000, 'Connection closed by client');
+              controller.error(new Error(error.message + "| " + "getWebSocketResponse: "));
             }
           });
           websocket.on('error', (error) => {
-            console.error('WebSocket error:', error.toString());
-            controller.error(error);
+            console.error(error);
+            controller.error(new Error(error.message + "| " + 'WebSocket error'));
           });
           websocket.on('close', (code, reason) => {
             if (code != 1000) {
@@ -359,4 +464,6 @@ module.exports = {
   sendMessage,
   sendChatReset,
   getWebSocketResponse,
+  retryableWebSocketResponse,
+  streamResponseRetryable,
 };

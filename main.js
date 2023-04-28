@@ -1,8 +1,9 @@
 const http = require('http');
 const WebSocket = require('ws');
 
-const { readBody, splitJsonArray, wait } = require('./utils');
-const { getWebSocketResponse, sendChatReset } = require('./slack');
+const { readBody, splitJsonArray } = require('./utils');
+const { retryableWebSocketResponse, streamResponseRetryable } = require('./slack');
+const { readBody, splitJsonArray } = require('./config');
 
 async function main() {
     const server = http.createServer(async (req, res) => {
@@ -23,16 +24,10 @@ async function main() {
 
             const id = `chatcmpl-${(Math.random().toString(36).slice(2))}`;
             const created = Math.floor(Date.now() / 1000);
-            try {
-                await sendChatReset();
-            } catch (err) {
-                console.error("Claude chat reset error");
-                console.log("!!!! CHECK YOUR TOKENS, COOKIES ./config.js");
-                res.end();
-            }
+            
             try {
                 if (!stream) {
-                    const result = await getWebSocketResponse(slices, stream);
+                    const result = await retryableWebSocketResponse(slices, stream);
                     console.log(result)
                     res.setHeader('Content-Type', 'application/json');
                     res.write(JSON.stringify({
@@ -49,10 +44,8 @@ async function main() {
                         }]
                     }));
                 } else {
-                    const resultStream = await getWebSocketResponse(slices, stream);
-                    const reader = resultStream.getReader();
-                    async function processData({ done, value }) {
-                        if (done) {
+                    const sendChunks = (nextChunk) => {
+                        if (nextChunk.done) {
                             res.write('\ndata: [DONE]');
                             return;
                         }
@@ -64,22 +57,19 @@ async function main() {
                             choices: [{
                                 delta: {
                                     role: 'assistant',
-                                    content: value.toString(),
+                                    content: nextChunk.value.toString(),
                                 },
                                 finish_reason: 'continue',
                                 index: 0,
                             }],
                         };
                         res.write('\ndata: ' + JSON.stringify(response_data));
-                        const nextChunk = await reader.read();
-                        await processData(nextChunk);
                     }
-
-                    const firstChunk = await reader.read();
-                    await processData(firstChunk);
+                    await streamResponseRetryable(slices, sendChunks);
                 }
-            } catch (err) {
-                console.error("Error while sending message/replying", err);
+            } catch (error) {
+                console.error(error)
+                console.error(error.message + "| " + "Error while sending message/replying");
                 res.end();
             }
         } else {
