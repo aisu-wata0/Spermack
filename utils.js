@@ -121,7 +121,7 @@ function splitMessageInTwo(text, maximumSplit) {
 
 function isInsideCodeBlock(text, index) {
   let textUpToIndex = text.slice(0, index);
-  let matches = textUpToIndex.match(/^```|\n```/gm);
+  let matches = textUpToIndex.match(/```/gm);
   if (matches) {
     let numDelimiters = matches.length;
     return numDelimiters % 2 === 1;
