@@ -2,7 +2,7 @@ const http = require('http');
 const WebSocket = require('ws');
 
 const { readBody, splitJsonArray } = require('./utils');
-const { retryableWebSocketResponse, streamResponseRetryable } = require('./slack');
+const { retryableWebSocketResponse, textResetSignal } = require('./slack');
 
 async function main() {
     const server = http.createServer(async (req, res) => {
@@ -48,6 +48,12 @@ async function main() {
                             res.write('\ndata: [DONE]');
                             return;
                         }
+                        let response_data = {};
+                        let content = nextChunk.value.toString();
+                        if (nextChunk.value.toString().startsWith(textResetSignal)) {
+                            response_data.reset = true;
+                            content = nextChunk.value.toString().slice(textResetSignal.length);
+                        }
                         response_data = {
                             id,
                             created,
@@ -56,7 +62,7 @@ async function main() {
                             choices: [{
                                 delta: {
                                     role: 'assistant',
-                                    content: nextChunk.value.toString(),
+                                    content: content,
                                 },
                                 finish_reason: 'continue',
                                 index: 0,
@@ -64,7 +70,7 @@ async function main() {
                         };
                         res.write('\ndata: ' + JSON.stringify(response_data));
                     }
-                    await streamResponseRetryable(slices, sendChunks);
+                    await retryableWebSocketResponse(slices, sendChunks);
                     res.end();
                 }
             } catch (error) {

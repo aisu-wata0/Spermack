@@ -11,8 +11,12 @@ const {
   retry_delay,
   minimum_response_size,
   minimum_response_size_retry_attempts,
+  textResetSignal,
 } = require('./config');
 const { readBody, headers, createBaseForm, convertToUnixTime, currentTime, buildPrompt, removeJailContextFromMessage, wait, } = require('./utils');
+
+
+const editting = false; // useless feature (for now)
 
 function Uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -145,8 +149,8 @@ async function sendChatReset() {
   });
 }
 
-async function streamResponse(slices, sendChunks) {
-  const resultStream = await getWebSocketResponse(slices, true);
+async function streamResponse(slices, sendChunks, retries) {
+  const resultStream = await getWebSocketResponse(slices, true, retries);
   const reader = resultStream.getReader();
   let nextChunk = await reader.read();
   while (true) {
@@ -158,14 +162,17 @@ async function streamResponse(slices, sendChunks) {
   }
 }
 
-async function streamResponseRetryable(slices, sendChunks, retries = {
+async function retryableWebSocketResponse(slices, sendChunks, retries = {
   "Jailbreak context failed": jail_context_retry_attempts,
   "Jailbreak failed": jail_retry_attempts,
   "Retry, reply was": minimum_response_size_retry_attempts,
 }, retryDelay = retry_delay) {
   try {
-    const response = await streamResponse(slices, sendChunks);
-    return response;
+    if (!sendChunks) {
+      return await streamResponse(slices, sendChunks, retries = retries);
+    } else {
+      return await getWebSocketResponse(slices, sendChunks, retries = retries);
+    }
   } catch (error) {
     for (let key in retries) {
       let retryOnErrorString = key;
@@ -180,7 +187,7 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
         retries[retryOnErrorString] = retries[retryOnErrorString] - 1;
-        return streamResponseRetryable(slices, sendChunks, retries, retryDelay);
+        return retryableWebSocketResponse(slices, sendChunks, retries, retryDelay);
       }
     }
 
@@ -196,45 +203,7 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
   }
 }
 
-async function retryableWebSocketResponse(messages, streaming, editing = false, retries = {
-  "Jailbreak context failed": jail_context_retry_attempts,
-  "Jailbreak failed": jail_retry_attempts,
-  "Retry, reply was": minimum_response_size_retry_attempts,
-}, retryDelay = retry_delay) {
-  try {
-    const response = await getWebSocketResponse(messages, streaming, editing);
-    return response;
-  } catch (error) {
-    for (let key in retries) {
-      let retryOnErrorString = key;
-      let retryCount = retries[key]
-      if (retryCount <= 0) {
-        continue;
-      }
-      if (error.message.includes(retryOnErrorString)) {
-        console.log(retryOnErrorString, "retries left:", retryCount);
-        console.log("+ Retrying: retryable error found while attempted to streamResponse:", retryOnErrorString);
-        if (retryDelay) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-        retries[retryOnErrorString] = retries[retryOnErrorString] - 1;
-        return retryableWebSocketResponse(messages, streaming, editing, retries, retryDelay);
-      }
-    }
-
-    for (let retryOnErrorString in retries) {
-      if (error.message.includes(retryOnErrorString)) {
-        if (retries[key] <= 0) {
-          throw new Error("Retries exhausted");
-        } 
-      }
-    }
-    console.trace(error);
-    throw new Error(error.message + "| " + "retryableWebSocketResponse");
-  }
-}
-
-async function getWebSocketResponse(messages, streaming, editting = false) {
+async function getWebSocketResponse(messages, streaming, retries) {
   return new Promise(async (resolve, reject) => {
     try {
       await sendChatReset();
@@ -414,6 +383,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                       // but first check if jail_context worked
                       let currentTextTotal = data.message.text;
                       if (checkJailbreakContext(currentTextTotal)) {
+                        controller.enqueue(textResetSignal + retries.toString());
                         throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
                       }
                       try {
@@ -429,9 +399,11 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                       // when typing finished, this is the end of the message
                       let currentTextTotal = data.message.text;
                       if (checkJailbreak(currentTextTotal)) {
+                        controller.enqueue(textResetSignal + retries.toString());
                         throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
                       }
                       if (minimum_response_size && currentTextTotal.length < minimum_response_size) {
+                        controller.enqueue(textResetSignal + retries.toString());
                         throw new Error(`Retry, reply was: ${currentTextTotal}`)
                       }
                       let currentTextChunk = data.message.text.slice(currentSlice);
@@ -520,5 +492,5 @@ module.exports = {
   sendChatReset,
   getWebSocketResponse,
   retryableWebSocketResponse,
-  streamResponseRetryable,
+  textResetSignal,
 };
