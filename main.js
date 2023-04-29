@@ -49,9 +49,10 @@ async function main() {
                             return;
                         }
                         let response_data = {};
+                        let reset = false;
                         let content = nextChunk.value.toString();
                         if (nextChunk.value.toString().startsWith(textResetSignal)) {
-                            response_data.reset = true;
+                            reset = true;
                             content = nextChunk.value.toString().slice(textResetSignal.length);
                         }
                         response_data = {
@@ -67,7 +68,9 @@ async function main() {
                                 finish_reason: 'continue',
                                 index: 0,
                             }],
+                            reset: reset,
                         };
+                        
                         res.write('\ndata: ' + JSON.stringify(response_data));
                     }
                     await retryableWebSocketResponse(slices, sendChunks);

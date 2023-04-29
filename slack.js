@@ -168,7 +168,7 @@ async function retryableWebSocketResponse(slices, sendChunks, retries = {
   "Retry, reply was": minimum_response_size_retry_attempts,
 }, retryDelay = retry_delay) {
   try {
-    if (!sendChunks) {
+    if (sendChunks) {
       return await streamResponse(slices, sendChunks, retries = retries);
     } else {
       return await getWebSocketResponse(slices, sendChunks, retries = retries);
@@ -193,7 +193,7 @@ async function retryableWebSocketResponse(slices, sendChunks, retries = {
 
     for (let retryOnErrorString in retries) {
       if (error.message.includes(retryOnErrorString)) {
-        if (retries[key] <= 0) {
+        if (retries[retryOnErrorString] <= 0) {
           throw new Error("Retries exhausted");
         }
       }
@@ -383,7 +383,7 @@ async function getWebSocketResponse(messages, streaming, retries) {
                       // but first check if jail_context worked
                       let currentTextTotal = data.message.text;
                       if (checkJailbreakContext(currentTextTotal)) {
-                        controller.enqueue(textResetSignal + retries.toString());
+                        controller.enqueue(textResetSignal + JSON.stringify(retries));
                         throw new Error(`Jailbreak context failed, reply was: ${currentTextTotal}`)
                       }
                       try {
@@ -399,11 +399,11 @@ async function getWebSocketResponse(messages, streaming, retries) {
                       // when typing finished, this is the end of the message
                       let currentTextTotal = data.message.text;
                       if (checkJailbreak(currentTextTotal)) {
-                        controller.enqueue(textResetSignal + retries.toString());
+                        controller.enqueue(textResetSignal + JSON.stringify(retries));
                         throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
                       }
                       if (minimum_response_size && currentTextTotal.length < minimum_response_size) {
-                        controller.enqueue(textResetSignal + retries.toString());
+                        controller.enqueue(textResetSignal + JSON.stringify(retries));
                         throw new Error(`Retry, reply was: ${currentTextTotal}`)
                       }
                       let currentTextChunk = data.message.text.slice(currentSlice);
