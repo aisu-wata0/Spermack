@@ -55,13 +55,13 @@ async function sendMessage(message) {
         }
         resolve(response);
       } catch (error) {
-        console.error(error);
+        console.trace(error.toString().slice(7,));
         reject(new Error(error.message + "| " + "while sending message " + " request:" + form.getBuffer() + "\n"));
       }
     });
 
     req.on('error', (error) => {
-      console.error(error);
+      console.trace(error.toString().slice(7,));
     });
 
     form.pipe(req);
@@ -94,13 +94,13 @@ async function editMessage(ts, newText) {
         const response = await readBody(res, true);
         resolve(response);
       } catch (error) {
-        console.error(error);
+        console.trace(error.toString().slice(7,));
         reject(new Error(error.message + "| " + "editMessage" + " request:" + form.getBuffer() + "\n"));
       }
     });
 
     req.on('error', (error) => {
-      console.error(error);
+      console.trace(error.toString().slice(7,));
       reject(error);
     });
 
@@ -131,13 +131,13 @@ async function sendChatReset() {
         console.log(response);
         resolve(response); // Resolve with the response data
       } catch (error) {
-        console.error(error);
+        console.trace(error.toString().slice(7,));
         reject(new Error(error.message + "| " + "sendChatReset: " + " request:" + form.getBuffer() + "\n"));
       }
     });
 
     req.on('error', (error) => {
-      console.error(error);
+      console.trace(error.toString().slice(7,));
       reject(error); // Reject with the error
     });
 
@@ -191,7 +191,7 @@ async function streamResponseRetryable(slices, sendChunks, retries = {
         }
       }
     }
-    console.error(error);
+    console.trace(error);
     throw new Error(error.message + "| " + "retryableWebSocketResponse");
   }
 }
@@ -229,7 +229,7 @@ async function retryableWebSocketResponse(messages, streaming, editing = false, 
         } 
       }
     }
-    console.error(error);
+    console.trace(error);
     throw new Error(error.message + "| " + "retryableWebSocketResponse");
   }
 }
@@ -239,7 +239,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
     try {
       await sendChatReset();
     } catch (error) {
-      console.error(error);
+      console.trace(error.toString().slice(7,));
       reject(new Error(error.message + "| " + "!!!! CHECK YOUR TOKENS, COOKIES./ config.js"))
     }
 
@@ -283,7 +283,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
           response = await sendMessage(prompt);
           sentTs = response.ts;
         } catch (error) {
-          console.error(error.stack);
+          console.trace(error.stack);
           throw (new Error(error.message + "| " + `sendNextPrompt: ${error.message}`))
         }
         console.log("Sent %d", messageIndex);
@@ -294,7 +294,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
     try {
       await sendNextPrompt();
     } catch (error) {
-      console.error(error);
+      console.trace(error);
       reject(new Error(error.message + "| " + `sendNextPrompt: ${error.message}`));
     }
 
@@ -349,7 +349,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                   try {
                     await sendNextPrompt();
                   } catch (error) {
-                    console.error(error);
+                    console.trace(error);
                     throw new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`);
                   }
                 }
@@ -380,14 +380,14 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
             }
           }
         } catch (error) {
-          console.error(error);
+          console.trace(error);
           websocket.close(1000, 'Connection closed by client');
           reject(new Error(error.message + "| " + "getWebSocketResponse: "))
         }
       });
 
       websocket.on('error', (error) => {
-        console.error(error);
+        console.trace(error);
         controller.error(new Error(error.message + "| " + 'WebSocket error'));
       });
       websocket.on('close', (code, reason) => {
@@ -419,7 +419,7 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                       try {
                         await sendNextPrompt();
                       } catch (error) {
-                        console.error(error);
+                        console.trace(error);
                         throw new Error(error.message + "| " + `Error while sending next prompt: ${error.message}`);
                       }
                     }
@@ -456,13 +456,13 @@ async function getWebSocketResponse(messages, streaming, editting = false) {
                 }
               }
             } catch (error) {
-              console.error(error);
+              console.trace(error);
               websocket.close(1000, 'Connection closed by client');
               controller.error(new Error(error.message + "| " + "getWebSocketResponse: "));
             }
           });
           websocket.on('error', (error) => {
-            console.error(error);
+            console.trace(error);
             controller.error(new Error(error.message + "| " + 'WebSocket error'));
           });
           websocket.on('close', (code, reason) => {
