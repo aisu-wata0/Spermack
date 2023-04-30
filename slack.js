@@ -165,7 +165,7 @@ async function streamResponse(slices, sendChunks, retries) {
 async function retryableWebSocketResponse(slices, sendChunks, retries = {
   "Jailbreak context failed": jail_context_retry_attempts,
   "Jailbreak failed": jail_retry_attempts,
-  "Retry, reply was": minimum_response_size_retry_attempts,
+  "Retry, reply was too small": minimum_response_size_retry_attempts,
 }, retryDelay = retry_delay) {
   try {
     if (sendChunks) {
@@ -331,7 +331,7 @@ async function getWebSocketResponse(messages, streaming, retries) {
                     throw new Error(`Jailbreak failed, reply was: ${currentTextTotal}`)
                   }
                   if (minimum_response_size && currentTextTotal.length < minimum_response_size) {
-                    throw new Error(`Retry, reply was: ${currentTextTotal}`)
+                    throw new Error(`Retry, reply was too small: ${currentTextTotal}`)
                   }
                   websocket.close(1000, 'Connection closed by client');
                   resolve(data.message.text);
@@ -404,7 +404,7 @@ async function getWebSocketResponse(messages, streaming, retries) {
                       }
                       if (minimum_response_size && currentTextTotal.length < minimum_response_size) {
                         controller.enqueue(textResetSignal + JSON.stringify(retries));
-                        throw new Error(`Retry, reply was: ${currentTextTotal}`)
+                        throw new Error(`Retry, reply was too small: ${currentTextTotal}`)
                       }
                       let currentTextChunk = data.message.text.slice(currentSlice);
                       currentSlice = data.message.text.length;
