@@ -2,6 +2,7 @@
 
 <p align="center">Script for connecting Claude to Tavern</p>
 <p align="center">(Credits at the bottom of this page. I DEMAND you acknowledge everyone who made this work.)</p>
+<p align='center'>Current Spermack build expects you to use this SillyTavern branch: https://github.com/bfs15/SillyTavern/tree/aisu</p>
 
 ---
 <br>
