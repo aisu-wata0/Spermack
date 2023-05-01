@@ -428,7 +428,7 @@ async function getWebSocketResponse(messages, streaming, retries) {
                 }
               }
             } catch (error) {
-              console.trace(error);
+              console.trace(error.toString().slice(7,));
               websocket.close(1000, 'Connection closed by client');
               controller.error(new Error(error.message + "| " + "getWebSocketResponse: "));
             }
