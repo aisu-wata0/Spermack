@@ -1,9 +1,10 @@
 const FormData = require('form-data');
 
 const { TOKEN, COOKIE, TEAM_ID, CLAUDE,
-  user_name,
-  assistant_name,
-  system_name,
+  role_example_string_to_use,
+  rename_roles,
+  finish_message_chunk_with_this_role_only,
+  when_msg_is_split_omit_role,
 } = require('./config');
 const { jail_context, include_assistant_tag } = require('./config');
 
@@ -18,25 +19,40 @@ const wait = (duration) => {
 
 function preparePrompt(messages) {
   return messages.filter(m => m.content?.trim()).map(m => {
-    const f = ": ";
+    role = m.role;
     let author = '';
-    switch (m.role) {
-      case 'user': author = user_name + f; break;
-      case 'assistant': author = assistant_name + f; break;
-      case 'system':
-        if (m.name) {
-          author = m.name + f;
-        } else {
-          author = system_name + f;
-        }
-        break;
-      case 'SPLIT_ROLE':
-        author = '';
-        break;
-      default: author = m.role + f; break;
+    let split = false;
+    if (m.role.startsWith('SPLIT_ROLE')) {
+      role = role.slice('SPLIT_ROLE'.length,);
+      split = true;
     }
-
-    return `${author}${m.content.trim()}`;
+    let is_example = false;
+    if (m.name && m.name.startsWith("example_")) {
+      is_example = true;
+    }
+    if (role in rename_roles) {
+      if (role != 'system') {
+        author = rename_roles[role]
+      } else {
+        if (m.name) {
+          if (is_example) {
+            let name = m.name.slice("example_".length,)
+            if (name in rename_roles) {
+              author = role_example_string_to_use + rename_roles[name];
+            }
+          }
+        } else {
+          author = rename_roles[role];
+        }
+      }
+    } else {
+      author = role;
+    }
+    let f = ": ";
+    if (!author) {
+      f = "";
+    }
+    return `${author}${f}${m.content.trim()}`;
   }).join('\n\n');
 }
 
@@ -194,7 +210,61 @@ function getMessageLength(msg) {
   return m_txt.length
 }
 
+
+function isMsgChatExample(msg) {
+  if (msg.name && msg.name.startsWith("example_")) {
+    return msg.name.slice("example_".length,);
+  }
+  return false;
+}
+
+function fixExamples(jsonArray) {
+  if (jsonArray.length == 0) {
+    return [];
+  }
+  console.log("Checking for empty reply examples");
+  let current_examples = 0;
+  let currentMsg = jsonArray[0];
+  for (let i = 0; i < jsonArray.length; i++) {
+    currentMsg = jsonArray[i];
+    let name = isMsgChatExample(currentMsg)
+    if (name) {
+      current_examples++;
+      if (i + 1 < jsonArray.length) {
+        let isNextOneExample = isMsgChatExample(jsonArray[i + 1])
+        if (!isNextOneExample) {
+          // check if current message is from user, if yes, remove it as it has no response from AI
+          if (name === 'user') {
+            console.log("Removed empty reply example of i =", i);
+            jsonArray.splice(i, 1);
+            // DO NOT i--; // It will skip any [Start Chat] and thats ok
+            // if you i--; then the current logic below breaks
+            current_examples--;
+          }
+          if (current_examples == 0) {
+            console.log("completely empty example, remove [Start chat] before this");
+            // empty example, remove [Start chat] before this
+            jsonArray.splice(i - 1, 1);
+            i--; // just removed an element from list before i, this is so you don't skip an element
+          }
+          current_examples = 0;
+        }
+      }
+    } else {
+      if (currentMsg.role != 'system') {
+        // should be end of examples. the initial prompt is given by system, and examples are handled
+        // the only thing remaning is actual conversation
+        console.log("Finshed examples at i =", i)
+        break;
+      }
+      current_examples = 0;
+    }
+  }
+  return jsonArray;
+}
+
 function splitJsonArray(jsonArray, maxLength) {
+  jsonArray = fixExamples(jsonArray);
   const result = [];
   let currentChunk = [];
   let currentLength = 0;
@@ -211,32 +281,134 @@ function splitJsonArray(jsonArray, maxLength) {
     return newObj;
   };
 
-  const assistant = "\n\nAssistant: ";
-  const textOverhead = Math.max(getJailContext().length, assistant.length);
+  const assistant = `\n\n${rename_roles['assistant']}: `;
+  const user = `\n\n${rename_roles['user']}: `;
+  const textOverhead = Math.max(assistant.length, user.length, getJailContext().length);
   if (jsonArray.length == 0) {
     return [];
   }
   let currentMsg = jsonArray[0];
   let prevIdx = 0;
+  let modifiedObj = false;
   for (let i = 0; i < jsonArray.length; i++) {
-    if (i != prevIdx) {
-      // ctrl+f 'i--'
+    if (!modifiedObj) {
       currentMsg = jsonArray[i];
     }
     prevIdx = i;
     const msgLength = getMessageLength(currentMsg) + 2;
     if (currentLength + msgLength + textOverhead <= maxLength) {
+      if (modifiedObj) {
+        modifiedObj = false;
+      }
       currentLength = addObjectToChunk(currentMsg, currentChunk);
     } else {
+      console.log("---- over maxLength  i=", i, "  currentMsg.role", currentMsg.role, "currentChunk.length=", currentChunk.length)
       if (currentChunk.length > 0) {
-        const lastObjectInChunk = currentChunk[currentChunk.length - 1];
-        const lastObjectWithJail = appendTextToContent(lastObjectInChunk, getJailContext());
-        currentChunk[currentChunk.length - 1] = lastObjectWithJail;
+        const has_denied_end_of_chunk_role = finish_message_chunk_with_this_role_only &&
+          (
+          !currentChunk[currentChunk.length - 1].role.endsWith(finish_message_chunk_with_this_role_only)) && (
+            // if the next one is also denied, this codition entirely and allow the msg to end on that role
+            !currentMsg.role.endsWith(finish_message_chunk_with_this_role_only)
+          )
+        if (!has_denied_end_of_chunk_role || currentChunk.length < 2) {
+          currentChunk[currentChunk.length - 1] = appendTextToContent(
+            currentChunk[currentChunk.length - 1], getJailContext())
+          result.push(currentChunk);
 
-        result.push(currentChunk);
-        currentChunk = [currentMsg];
-        // - 2 because the `.join('\n\n');` from `buildPrompt` doesn't apply to the first message
-        currentLength = msgLength - 2;
+          currentChunk = [];
+          currentLength = 0;
+          i--; // critical so you don't go to next obj, and process this one instead
+        } else {
+          // the thing is that below this, another chunk will start with `currentMsg` as the first message
+          // but the flag dictates the chunk can only start when the first message is from the role `finish_message_chunk_with_this_role_only`
+          // Solution: remove last message from currentChunk and add to next chunk, together with `currentMsg`
+
+          //  example:
+          //   slices = [
+          //     0,
+          //     1,
+          //     2,
+          //   ];
+
+          //   i = 2;
+          //   // currentMsg (2) doesn't fit, and 1 (lastObjectInChunk) is denied by role
+          //   state:
+          //     currentChunk = [
+          //       0,
+          //       1, // denied, will pop()
+          //     ];
+          //     results = [];
+
+          //   (same loop next commands and state)
+          //   i=2
+          //   currentChunk.pop();
+          //   result.push(currentChunk);
+          //   currentChunk = [];
+          //   i -= 2; // 2 because you need to go back one, and for loop also does i++,
+          //   state:
+          //     currentChunk = [];
+          //     results = [
+          //       [
+          //         0,
+          //       ],
+          //     ];
+
+          //   (next loop, i++)
+          //   i = 1;
+          //   // ... adds 1 no prob
+          //   state:
+          //     currentChunk = [1];
+          //     results = [
+          //       [
+          //         0,
+          //       ],
+          //     ];
+          // // ... continues as normal, first chunk fixed (1 is not last msg)
+
+          //   i = 1;
+          //   // currentMsg (1) doesn't fit, and 0 (lastObjectInChunk) is denied by role
+          //   state:
+          //     currentChunk = [
+          //       0, // will pop()
+          //     ];
+          //     results = [];
+
+          //   (same loop next commands and state)
+          //   i=1
+          //   currentChunk.pop();
+          //   result.push(currentChunk);
+          //   currentChunk = [];
+          //   i -= 2; // 2 because you need to go back one, and for loop also does i++,
+          //   state:
+          //     currentChunk = [];
+          //     results = [
+          //       [
+          //         0,
+          //       ],
+          //     ];
+
+          //   (next loop, i++)
+          //   i = 1;
+          //   // ... adds 1 no prob
+          //   state:
+          //     currentChunk = [1];
+          //     results = [
+          //       [
+          //         0,
+          //       ],
+          //     ];
+          // // ... continues as normal, first chunk fixed (1 is not last msg)
+          console.log("Adding last chunk's msg to next one instead (end of chunk's msg had role denied by finish_message_chunk_with_this_role_only in config)")
+          currentChunk.pop();
+            currentChunk[currentChunk.length - 1] = appendTextToContent(
+            currentChunk[currentChunk.length - 1], getJailContext())
+          result.push(currentChunk);
+          currentChunk = [];
+          currentLength = 0;
+          // the other one goes to next loop, crazy I know
+          i -= 2; // critical so you don't go to next obj, and process lastObjectInChunk instead
+          // which is 1 before current `i`, but the for loop adds one more, so subtract 2
+        }
       } else {
         console.log("Message too big! It doesn't fit in a single chat message!", currentMsg.content.length)
         let splitContent = splitMessageInTwo(currentMsg.content, maxLength - textOverhead)
@@ -249,8 +421,13 @@ function splitJsonArray(jsonArray, maxLength) {
         currentLength = 0;
         // the other one goes to next loop, crazy I know
         // I don't add her to the next chunk here because it could hypothetically need a split too
-        currentMsg = { ...currentMsg, content: splitContent[1], role: "SPLIT_ROLE" };
-        i--; // so you don't go to next obj, and process this one instead
+        let role = "SPLIT_ROLE";
+        if (!when_msg_is_split_omit_role) {
+          role = role + currentMsg.role;
+        }
+        currentMsg = { ...currentMsg, content: splitContent[1], role: role };
+        modifiedObj = true;
+        i--; // critical so you don't go to next obj, and process this one instead
         console.log("split into ", getMessageLength(msgFirstSplit), getMessageLength(currentMsg))
       }
     }
