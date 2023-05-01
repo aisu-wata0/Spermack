@@ -87,3 +87,21 @@ Original code by Barbariskaa (https://github.com/Barbariskaa/Spermack)
 Streaming and many other fixes by Bruno FS (https://github.com/bfs15)
 
 Translation/Readme by AmmoniaM <3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# STOP READING! EVERYTHING PAST HERE IS WORK IM PROGRESS! STAY TUNED!
+
+![SpermackImageGaslight](https://user-images.githubusercontent.com/123271218/235389846-13a6fc1c-666f-4a55-8370-b402c3203174.png)
