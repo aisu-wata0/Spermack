@@ -79,7 +79,7 @@ Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararct
 
 # Mindbreaking 101, or "how do I graciously gaslight my asinine assistant so that I can indelicately indulge in endless extreme explicit content?":
 
-0. Use my custom fork of the Tavern: https://github.com/bfs15/SillyTavern/tree/aisu
+0. Update Tavern: https://github.com/Cohee1207/SillyTavern
 1. Set you CONTEXT to < 5.6k (if you don't do this the Mindbreak will fall out of Claude's actual context)
 2. Turn "NSFW fist" OFF!
 3. Treat your main prompt+NSFW prompt as a conversation between you and Claude. The Main prompt is your first message to it, then you'll continue in the NSFW prompt with a specific format:
@@ -99,7 +99,7 @@ Claude cannot handle any backslashes(\\) anywhere. If one shows up on a chararct
 
 # マインドブレイク 101、または「馬鹿なアシスタントを優雅にマインドブレイクするために、無限の過激な露骨コンテンツと洗練されていられる方法は?」:
 
-0. こちらのカスタムTavernを使用してください：https://github.com/bfs15/SillyTavern/tree/aisu
+0. アップデートhttps://github.com/Cohee1207/SillyTavern
 1. CONTEXT を 5.6k 未満に設定します(これを行わないと、マインドブレイクはクロードの実際のコンテキストから外れてしまいます)
 2. NSFWの拳を最初にOFF!
 3. メインプロンプト+ NSFWプロンプトをあなたとクロードの会話として扱います。メインプロンプトは最初のメッセージで、NSFWプロンプトでは特定の形式で続きます。
