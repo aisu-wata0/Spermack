@@ -65,6 +65,7 @@ In SillyTavern, open OpenAI settings(sliders tab). Select GPT-4 as the OpenAI Mo
 # Check Your Settings
 
 Settings are in config.js.
+
 What can BREAK your experience for example: If you expect small messages from the AI, you HAVE to disable a feature of automatic retry on small messages (which are usually jailbreak fails), set this to `0`:  `minimum_response_size: 222,`
 
 <h1 align="center">Troubleshooting</h1>
