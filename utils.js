@@ -1,7 +1,8 @@
 const FormData = require('form-data');
 
 const { TOKEN, COOKIE, TEAM_ID, CLAUDE,
-  role_example_string_to_use,
+  role_example_prefix_string_to_use,
+  role_example_suffix_string_to_use,
   rename_roles,
   finish_message_chunk_with_this_role_only,
   when_msg_is_split_omit_role,
@@ -38,7 +39,7 @@ function preparePrompt(messages) {
           if (is_example) {
             let name = m.name.slice("example_".length,)
             if (name in rename_roles) {
-              author = role_example_string_to_use + rename_roles[name];
+              author = role_example_prefix_string_to_use + rename_roles[name] + role_example_suffix_string_to_use;
             }
           }
         } else {
@@ -93,7 +94,7 @@ const headers = {
   'User-Agent':	'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0',
 }
 
-function splitMessageInTwo(text, maximumSplit) {
+function splitMessageInTwo(text, maximumSplit, miminumSplit=500) {
   // Split text in two, find the latest paragraph, or a newline, or just a sentence break, in this priority, to break it, worst case, use a space.
   // Important: be VERY carefull not to break markdown formatting
   // for example, you might find a \n\n, but you can't split there if it's inside "```" quotations
@@ -105,7 +106,7 @@ function splitMessageInTwo(text, maximumSplit) {
       if (i !== -1 && !isInsideCodeBlock(textToSearch, i) &&
         (allowMarkdownInlineBreak || !isInsideMarkdownInline(textToSearch, i)) &&
         (allowDelimiter || !isInsideDelimiters(textToSearch, i)) &&
-        textToSearch.slice(0, i).length <= maximumSplit) {
+        textToSearch.slice(0, i).length <= maximumSplit && textToSearch.slice(0, i).length > miminumSplit) {
         return [text.slice(0, i), text.slice(i + 1)];
       }
       if (i === -1) break;

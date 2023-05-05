@@ -62,6 +62,11 @@ Run start.bat. In the console, you'll see a local IP address. Copy it.
 
 In SillyTavern, open OpenAI settings(sliders tab). Select GPT-4 as the OpenAI Mode. In the Reverse Proxy box under that, paste in the IP in your clipboard. In the API tab, hit connect. Congratulations!
 
+# Check Your Settings
+
+Settings are in config.js.
+
+If you expect small messages from the AI, you HAVE to disable a feature of automatic retry on small messages (which are usually jailbreak fails), set this to `0`:  `minimum_response_size: 222,`
 
 <h1 align="center">Troubleshooting</h1>
 
